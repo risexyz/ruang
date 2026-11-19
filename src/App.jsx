@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, ArrowDownRight, ArrowUpRight, Bell, BookOpen, CalendarDays,
   CheckCircle2, ChevronDown, CircleHelp, Clapperboard, Clock3, Command,
@@ -229,6 +229,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState(false);
+  const lastSavedDraft = useRef('');
 
   useEffect(() => {
     setVideoId(current => current || videos[0]?.id || '');
@@ -240,7 +241,11 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       if (!videoId) return;
       setLoadingDraft(true);
       const { data, error } = await supabase.from('video_scripts').select('body').eq('video_id', videoId).maybeSingle();
-      if (alive && !error) setDraft(data?.body || '');
+      if (alive && !error) {
+        const savedBody = data?.body || '';
+        lastSavedDraft.current = savedBody;
+        setDraft(savedBody);
+      }
       if (alive && error) notify('Gagal memuat naskah: ' + error.message);
       if (alive) setLoadingDraft(false);
     }
@@ -250,7 +255,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
 
   // Autosave draft after a short pause; no OpenAI request is made here.
   useEffect(() => {
-    if (!draft.trim() || busy || loadingDraft || saving) return undefined;
+    if (!draft.trim() || draft.trim() === lastSavedDraft.current || busy || loadingDraft || saving) return undefined;
     const timer = window.setTimeout(() => {
       saveDraft(draft, { silent: true });
     }, 1400);
@@ -309,6 +314,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       notify('Konten sudah dibuat, tetapi naskah gagal disimpan: ' + scriptError.message);
       return false;
     }
+    lastSavedDraft.current = scriptBody;
     if (!options.silent) notify('Naskah berhasil disimpan otomatis ke Konten Video dan Supabase.');
     return true;
   }
