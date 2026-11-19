@@ -43,8 +43,16 @@ function App() {
 
   useEffect(() => {
     if (!supabase) { setLoadingVideos(false); return; }
-    supabase.auth.getUser().then(({ data }) => setProfile(data.user ?? null));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setProfile(session?.user ?? null));
+    const applySessionUser = (user) => {
+      setProfile((current) => {
+        const nextUser = user ?? null;
+        // Jangan memicu pemuatan ulang workspace jika hanya objek sesi/token yang berubah.
+        if (current?.id === nextUser?.id) return current;
+        return nextUser;
+      });
+    };
+    supabase.auth.getUser().then(({ data }) => applySessionUser(data.user));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => applySessionUser(session?.user));
     return () => listener.subscription.unsubscribe();
   }, []);
 
