@@ -363,7 +363,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       }
     } catch {}
     if (!options.silent) notify(options.clearAfterSave
-      ? 'Naskah berhasil disimpan ke Konten Video. Editor sudah dikosongkan.'
+      ? 'Naskah berhasil disimpan ke Konten Video. Editor dan ide/topik sudah dikosongkan.'
       : 'Naskah berhasil disimpan otomatis ke Konten Video dan Supabase.');
     return true;
   }
