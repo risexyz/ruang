@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, ArrowDownRight, ArrowUpRight, Bell, BookOpen, CalendarDays,
+  Activity, ArrowDownRight, ArrowUpRight, Bell, BookOpen, CalendarDays, Download,
   CheckCircle2, ChevronDown, CircleHelp, Clapperboard, Clock3, Command,
   Compass, FileText, Filter, FolderOpen, Gauge, Lightbulb, LogOut, Menu, MoreHorizontal,
   Play, Plus, Search, Settings2, Sparkles, Target, TrendingUp, Video, Trash2,
@@ -166,6 +166,30 @@ function App() {
     setVideos(prev => prev.map(item => item.id === video.id ? { ...item, scheduledAt, date: scheduledAt ? new Date(scheduledAt).toLocaleDateString('id-ID') : '—', ...(scheduledAt ? { status: 'Terjadwal' } : {}) } : item));
     notify(scheduledAt ? 'Jadwal publikasi berhasil disimpan' : 'Jadwal publikasi dihapus');
   }
+  function exportVisibleVideos() {
+    if (!visible.length) { notify('Tidak ada konten untuk diekspor'); return; }
+    const headers = ['Judul Konten', 'Kategori', 'Status', 'Jadwal Publikasi', 'Durasi'];
+    const rows = visible.map(video => [
+      video.title,
+      video.category,
+      video.status,
+      video.scheduledAt ? new Date(video.scheduledAt).toLocaleString('id-ID') : '',
+      video.duration
+    ]);
+    const escapeCell = value => '"' + String(value ?? '').replace(/"/g, '""') + '"';
+    const csv = '\\uFEFF' + [headers, ...rows].map(row => row.map(escapeCell).join(';')).join('\\r\\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'ruang-fakta-konten-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    notify(rows.length + ' konten berhasil diekspor');
+  }
+
   async function deleteVideo(video) {
     if (!profile || !window.confirm(`Hapus konten "${video.title}" beserta naskah dan data produksinya? Tindakan ini tidak bisa dibatalkan.`)) return;
     const { error: scriptError } = await supabase.from('video_scripts').delete().eq('video_id', video.id);
@@ -290,7 +314,7 @@ function App() {
             <div className="quote-panel"><div className="quote-mark">“</div><p>Konten yang baik bukan hanya memberi jawaban, tetapi membuat orang ingin bertanya lebih jauh.</p><span>FILOSOFI RUANG FAKTA</span><div className="quote-decoration">RF</div></div>
           </section>
         </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : active === 'Kalender' ? <CalendarPage videos={videos}/> : active === 'Perpustakaan' ? <LibraryPage videos={videos} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }}/> : active === 'Analitik' ? <AnalyticsPage videos={videos}/> : active === 'Ide & Riset' ? <IdeasResearchPage videos={videos} onCreate={() => { setForm(current => ({ ...current, status: 'Ide' })); setShowModal(true); }} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} /> : <section className="list-page">
-          <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
+          <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><div className="list-title-actions"><button className="subtle-button export-button" onClick={exportVisibleVideos} disabled={!visible.length}><Download size={15}/> Ekspor Excel</button><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div></div>
           <section className="stats-grid video-status-stats">
             <Stat icon={Lightbulb} label="Ide" value={count('Ide')} note="Gagasan baru" tone="purple"/>
             <Stat icon={Search} label="Riset" value={count('Riset')} note="Sedang diteliti" tone="blue"/>
