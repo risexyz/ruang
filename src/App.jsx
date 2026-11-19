@@ -280,8 +280,6 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
         duration: '—',
         color: '#64d6c4'
       };
-      setVideoId(targetVideoId);
-      onVideoCreated?.(createdVideo);
     }
 
     const { error: scriptError } = await supabase.from('video_scripts').upsert({
@@ -292,6 +290,8 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
 
     if (!scriptError) {
       await supabase.from('videos').update({ script: scriptBody, status: 'script', updated_at: new Date().toISOString() }).eq('id', targetVideoId);
+      if (createdVideo) onVideoCreated?.(createdVideo);
+      setVideoId(targetVideoId);
     }
     setSaving(false);
     if (scriptError) {
