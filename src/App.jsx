@@ -3,7 +3,7 @@ import {
   Activity, ArrowDownRight, ArrowUpRight, Bell, BookOpen, CalendarDays,
   CheckCircle2, ChevronDown, CircleHelp, Clapperboard, Clock3, Command,
   Compass, FileText, Filter, FolderOpen, Gauge, Lightbulb, Menu, MoreHorizontal,
-  Play, Plus, Search, Settings2, Sparkles, Target, TrendingUp, Video,
+  Play, Plus, Search, Settings2, Sparkles, Target, TrendingUp, Video, Trash2,
   WandSparkles, X, Youtube
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
@@ -113,6 +113,18 @@ function App() {
     notify('Konten berhasil disimpan ke Supabase');
   }
 
+  async function deleteVideo(video) {
+    if (!profile || !window.confirm(`Hapus konten "${video.title}" beserta naskah dan data produksinya? Tindakan ini tidak bisa dibatalkan.`)) return;
+    const { error: scriptError } = await supabase.from('video_scripts').delete().eq('video_id', video.id);
+    if (scriptError) { notify('Gagal menghapus naskah: ' + scriptError.message); return; }
+    const { error: productionError } = await supabase.from('video_productions').delete().eq('video_id', video.id);
+    if (productionError) { notify('Gagal menghapus data produksi: ' + productionError.message); return; }
+    const { error } = await supabase.from('videos').delete().eq('id', video.id).eq('user_id', profile.id);
+    if (error) { notify('Gagal menghapus konten: ' + error.message); return; }
+    setVideos(prev => prev.filter(item => item.id !== video.id));
+    notify('Konten dan data terkait berhasil dihapus');
+  }
+
   async function handleAuth(e) {
     e.preventDefault();
     if (!supabase) return;
@@ -215,7 +227,7 @@ function App() {
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option>Semua</option>{stages.map(s=><option key={s}>{s}</option>)}</select></div></div>
             <div className="table-head"><span>JUDUL KONTEN</span><span>KATEGORI</span><span>STATUS</span><span>JADWAL</span></div>
-            {visible.length ? visible.map(v=><div className="table-row" key={v.id} role="button" tabIndex={0} title="Buka naskah konten ini" onClick={() => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setScriptVideoToOpen(v.id); setActive('Naskah'); } }}><div className="table-title"><div className="video-thumb" style={{'--accent':v.color}}><Play size={14}/></div><div><strong>{v.title}</strong><small>Video • {v.duration}</small></div></div><span className="table-category">{v.category}</span><span><i className={`status-tag ${statusClass(v.status)}`}>{v.status}</i></span><span className="table-date">{v.date}</span></div>) : <div className="empty-state"><Search size={25}/><strong>Konten tidak ditemukan</strong><span>Coba kata kunci atau filter yang berbeda.</span></div>}
+            {visible.length ? visible.map(v=><div className="table-row" key={v.id} role="button" tabIndex={0} title="Buka naskah konten ini" onClick={() => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setScriptVideoToOpen(v.id); setActive('Naskah'); } }}><div className="table-title"><div className="video-thumb" style={{'--accent':v.color}}><Play size={14}/></div><div><strong>{v.title}</strong><small>Video • {v.duration}</small></div></div><span className="table-category">{v.category}</span><span><i className={`status-tag ${statusClass(v.status)}`}>{v.status}</i></span><span className="table-date">{v.date}</span><button type="button" className="delete-video-button" title="Hapus konten" aria-label={`Hapus ${v.title}`} onClick={e=>{e.stopPropagation();deleteVideo(v);}}><Trash2 size={15}/></button></div>) : <div className="empty-state"><Search size={25}/><strong>Konten tidak ditemukan</strong><span>Coba kata kunci atau filter yang berbeda.</span></div>}
           </div>
           <div className="list-foot">{visible.length} dari {videos.length} konten ditampilkan</div>
         </section>}
