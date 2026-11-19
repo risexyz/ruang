@@ -10,11 +10,14 @@ create table if not exists public.video_scripts (
   video_id uuid not null unique references public.videos(id) on delete cascade,
   opening_hook text,
   body text not null default '',
+  topic text,
   closing text,
   research_sources text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.video_scripts add column if not exists topic text;
 
 alter table public.video_scripts enable row level security;
 
