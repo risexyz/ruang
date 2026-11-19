@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, ArrowDownRight, ArrowUpRight, Bell, BookOpen, CalendarDays,
   CheckCircle2, ChevronDown, CircleHelp, Clapperboard, Clock3, Command,
-  Compass, FileText, Filter, FolderOpen, Gauge, Lightbulb, Menu, MoreHorizontal,
+  Compass, FileText, Filter, FolderOpen, Gauge, Lightbulb, LogOut, Menu, MoreHorizontal,
   Play, Plus, Search, Settings2, Sparkles, Target, TrendingUp, Video, Trash2,
   WandSparkles, X, Youtube
 } from 'lucide-react';
@@ -202,7 +202,7 @@ function App() {
     <main className="main-area">
       <header className="topbar">
         <div className="breadcrumbs"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)}><Menu size={19}/></button><span>Workspace</span><span className="crumb-slash">/</span><strong>{active}</strong></div>
-        <div className="top-actions"><div className="status-pill"><span className="live-dot"/>{isSupabaseConfigured ? 'Database connected' : 'Preview mode'}</div><button className="icon-button notification" onClick={() => notify('Belum ada notifikasi baru')}><Bell size={18}/><i/></button><div className="top-avatar">RF</div></div>
+        <div className="top-actions"><button className="subtle-button logout-top" onClick={signOut}><LogOut size={14}/> Keluar</button><div className="status-pill"><span className="live-dot"/>{isSupabaseConfigured ? 'Database connected' : 'Preview mode'}</div><button className="icon-button notification" onClick={() => notify('Belum ada notifikasi baru')}><Bell size={18}/><i/></button><div className="top-avatar">RF</div></div>
       </header>
 
       <div className="page-content">
