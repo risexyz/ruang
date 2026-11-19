@@ -72,7 +72,7 @@ function App() {
       } else {
         setCategoryRows(cats || []);
         setVideos((data || []).map(v => ({
-          id: v.id, title: v.title, category: v.categories?.name || 'Tanpa kategori',
+          id: v.id, title: v.title, scheduledAt: v.scheduled_at, category: v.categories?.name || 'Tanpa kategori',
           status: ({ idea:'Ide', research:'Riset', script:'Penulisan', production:'Editing', scheduled:'Terjadwal', published:'Terbit', archived:'Arsip' })[v.status] || 'Ide',
           date: v.scheduled_at ? new Date(v.scheduled_at).toLocaleDateString('id-ID') : '—',
           duration: v.target_duration_seconds ? Math.floor(v.target_duration_seconds/60)+':'+String(v.target_duration_seconds%60).padStart(2,'0') : '—',
@@ -236,7 +236,7 @@ function App() {
             <div className="panel category-panel"><div className="panel-heading"><div><h3>Jelajahi kategori</h3><p>Ruang untuk setiap rasa ingin tahu.</p></div><Compass size={17} className="muted"/></div><div className="category-grid">{categories.map(c => <button key={c.name} className="category-chip" onClick={() => {setFilter('Semua');setSearch(c.name);setActive('Konten Video')}}><span style={{color:c.color}}>{c.icon}</span><strong>{c.name}</strong><ArrowUpRight size={13}/></button>)}</div></div>
             <div className="quote-panel"><div className="quote-mark">“</div><p>Konten yang baik bukan hanya memberi jawaban, tetapi membuat orang ingin bertanya lebih jauh.</p><span>FILOSOFI RUANG FAKTA</span><div className="quote-decoration">RF</div></div>
           </section>
-        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : <section className="list-page">
+        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : active === 'Kalender' ? <CalendarPage videos={videos}/> : active === 'Perpustakaan' ? <LibraryPage videos={videos} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }}/> : <section className="list-page">
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option>Semua</option>{stages.map(s=><option key={s}>{s}</option>)}</select></div></div>
             <div className="table-head"><span>JUDUL KONTEN</span><span>KATEGORI</span><span>STATUS</span><span>JADWAL</span></div>
@@ -251,6 +251,37 @@ function App() {
     {showModal && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowModal(false)}}><form className="modal" onSubmit={addVideo}><div className="modal-head"><div><div className="eyebrow"><span/> NEW PROJECT</div><h2>Mulai sebuah cerita.</h2><p>Tambahkan ide konten baru ke workspace.</p></div><button type="button" className="icon-button" onClick={()=>setShowModal(false)}><X size={18}/></button></div><label>Judul konten<input autoFocus required value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Contoh: Rahasia di balik..." /></label><div className="modal-fields"><label>Kategori<select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{categories.map(c=><option key={c.name}>{c.name}</option>)}</select></label><label>Status awal<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{stages.map(s=><option key={s}>{s}</option>)}</select></label></div><div className="modal-actions"><button type="button" className="subtle-button" onClick={()=>setShowModal(false)}>Batal</button><button className="primary-button" type="submit"><Plus size={16}/> Tambahkan konten</button></div></form></div>}
     {toast && <div className="toast"><CheckCircle2 size={17}/>{toast}</div>}
   </div>;
+}
+
+
+function CalendarPage({ videos }) {
+  const scheduled = videos
+    .filter(video => video.scheduledAt)
+    .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+  return <section className="list-page">
+    <div className="eyebrow"><span/> JADWAL PUBLIKASI</div>
+    <div className="list-title-row"><div><h1>Kalender Konten</h1><p>Pantau konten yang memiliki tanggal publikasi.</p></div><span className="script-status">{scheduled.length} konten terjadwal</span></div>
+    <div className="panel list-panel">
+      {scheduled.length ? <div className="calendar-list">{scheduled.map(video => <div className="calendar-entry" key={video.id}>
+        <div className="calendar-date"><strong>{new Date(video.scheduledAt).toLocaleDateString('id-ID',{day:'2-digit'})}</strong><span>{new Date(video.scheduledAt).toLocaleDateString('id-ID',{month:'short',year:'numeric'})}</span></div>
+        <div className="calendar-entry-info"><strong>{video.title}</strong><span>{video.category} · {video.duration}</span></div>
+        <i className={`status-tag ${statusClass(video.status)}`}>{video.status}</i>
+      </div>)}</div> : <div className="empty-state"><CalendarDays size={27}/><strong>Belum ada jadwal publikasi</strong><span>Konten akan muncul di sini setelah memiliki tanggal jadwal.</span></div>}
+    </div>
+  </section>;
+}
+
+function LibraryPage({ videos, onOpen }) {
+  return <section className="list-page">
+    <div className="eyebrow"><span/> ARSIP & REFERENSI</div>
+    <div className="list-title-row"><div><h1>Perpustakaan Konten</h1><p>Kumpulan naskah dan konten yang tersimpan di workspace.</p></div><span className="script-status">{videos.length} koleksi</span></div>
+    <div className="library-grid">{videos.length ? videos.map(video => <button className="library-card" key={video.id} onClick={() => onOpen(video)}>
+      <div className="library-card-icon"><BookOpen size={19}/></div>
+      <i className={`status-tag ${statusClass(video.status)}`}>{video.status}</i>
+      <strong>{video.title}</strong><span>{video.category} · {video.duration}</span>
+      <small>Buka naskah <ArrowUpRight size={12}/></small>
+    </button>) : <div className="panel empty-state"><FolderOpen size={27}/><strong>Perpustakaan masih kosong</strong><span>Konten yang dibuat akan tersimpan di sini.</span></div>}</div>
+  </section>;
 }
 
 
