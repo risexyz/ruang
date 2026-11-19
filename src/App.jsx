@@ -236,7 +236,6 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
   useEffect(() => {
     let alive = true;
     async function loadDraft() {
-      setDraft('');
       if (!videoId) return;
       const { data, error } = await supabase.from('video_scripts').select('body').eq('video_id', videoId).maybeSingle();
       if (alive && !error && data?.body) setDraft(data.body);
@@ -245,6 +244,15 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
     loadDraft();
     return () => { alive = false; };
   }, [videoId]);
+
+  // Autosave draft after a short pause; no OpenAI request is made here.
+  useEffect(() => {
+    if (!draft.trim() || busy) return undefined;
+    const timer = window.setTimeout(() => {
+      saveDraft(draft, { silent: true });
+    }, 1400);
+    return () => window.clearTimeout(timer);
+  }, [draft, videoId, busy]);
 
   async function saveDraft(content = draft, options = {}) {
     const scriptBody = String(content || '').trim();
