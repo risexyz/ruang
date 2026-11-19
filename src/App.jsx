@@ -333,13 +333,16 @@ function ProductionStudio({ videos, notify, onCreate }) {
     async function loadProduction() {
       setProduction(null);
       if (!videoId) return;
-      const { data, error } = await supabase.from('video_productions')
-        .select('package').eq('video_id', videoId).maybeSingle();
+      const [{ data, error }, { data: scriptData, error: scriptError }] = await Promise.all([
+        supabase.from('video_productions').select('package').eq('video_id', videoId).maybeSingle(),
+        supabase.from('video_scripts').select('body').eq('video_id', videoId).maybeSingle()
+      ]);
       if (!alive) return;
       if (error) notify('Gagal memuat paket produksi: ' + error.message);
       else if (data?.package) setProduction(data.package);
+      if (scriptError) notify('Naskah belum dapat dimuat: ' + scriptError.message);
       const selected = videos.find(v => String(v.id) === String(videoId));
-      if (selected) setTopic(selected.title);
+      if (selected) setTopic(scriptData?.body?.trim() ? selected.title + '\n\nNaskah:\n' + scriptData.body : selected.title);
     }
     loadProduction();
     return () => { alive = false; };
@@ -401,7 +404,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
             {videos.map(v=><option key={v.id} value={v.id}>{v.title}</option>)}
           </select>
         </label>
-        <label>Topik / ringkasan naskah
+        <label>Topik / naskah (otomatis dari menu Naskah)
           <textarea rows="5" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Masukkan topik, sudut cerita, atau ringkasan naskah..."/>
         </label>
         <div className="production-fields">
