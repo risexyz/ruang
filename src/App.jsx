@@ -27,7 +27,11 @@ const statusClass = s => s.toLowerCase().replaceAll(' ', '-');
 
 function App() {
   const [active, setActive] = useState('Overview');
-  const [videos, setVideos] = useState(initialVideos);
+  const [videos, setVideos] = useState([]);
+  const [authMode, setAuthMode] = useState('signup');
+  const [authForm, setAuthForm] = useState({ email: '', password: '' });
+  const [authBusy, setAuthBusy] = useState(false);
+  const [loadingVideos, setLoadingVideos] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('Semua');
   const [showModal, setShowModal] = useState(false);
@@ -35,13 +39,42 @@ function App() {
   const [form, setForm] = useState({ title: '', category: 'Sains & Alam', status: 'Ide' });
   const [mobileNav, setMobileNav] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [categoryRows, setCategoryRows] = useState([]);
 
   useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getUser().then(({ data }) => setProfile(data.user));
+    if (!supabase) { setLoadingVideos(false); return; }
+    supabase.auth.getUser().then(({ data }) => setProfile(data.user ?? null));
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setProfile(session?.user ?? null));
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!supabase || !profile) { setVideos([]); setLoadingVideos(false); return; }
+    let alive = true;
+    async function loadWorkspace() {
+      setLoadingVideos(true);
+      const [{ data: cats, error: catError }, { data, error }] = await Promise.all([
+        supabase.from('categories').select('id,name,slug').order('name'),
+        supabase.from('videos').select('id,title,status,scheduled_at,target_duration_seconds,category_id,categories(name)').order('created_at', { ascending: false })
+      ]);
+      if (!alive) return;
+      if (catError || error) {
+        notify('Gagal memuat data: ' + (catError?.message || error?.message));
+      } else {
+        setCategoryRows(cats || []);
+        setVideos((data || []).map(v => ({
+          id: v.id, title: v.title, category: v.categories?.name || 'Tanpa kategori',
+          status: ({ idea:'Ide', research:'Riset', script:'Penulisan', production:'Editing', scheduled:'Terjadwal', published:'Terbit', archived:'Arsip' })[v.status] || 'Ide',
+          date: v.scheduled_at ? new Date(v.scheduled_at).toLocaleDateString('id-ID') : '—',
+          duration: v.target_duration_seconds ? Math.floor(v.target_duration_seconds/60)+':'+String(v.target_duration_seconds%60).padStart(2,'0') : '—',
+          color: categories.find(c => c.name === (v.categories?.name || ''))?.color || '#64d6c4'
+        })));
+      }
+      setLoadingVideos(false);
+    }
+    loadWorkspace();
+    return () => { alive = false; };
+  }, [profile]);
 
   const visible = useMemo(() => videos.filter(v =>
     (filter === 'Semua' || v.status === filter) &&
@@ -52,13 +85,41 @@ function App() {
     setToast(message);
     window.setTimeout(() => setToast(''), 2800);
   }
-  function addVideo(e) {
+  async function addVideo(e) {
     e.preventDefault();
-    if (!form.title.trim()) return;
-    setVideos(prev => [{ ...form, id: Date.now(), date: '—', duration: '—', color: categories.find(c => c.name === form.category)?.color || '#64d6c4' }, ...prev]);
+    if (!form.title.trim() || !profile) return;
+    const category = categoryRows.find(c =>
+      (form.category === 'Sains & Alam' && c.slug === 'sains') ||
+      (form.category === 'Misteri Semesta' && c.slug === 'misteri-alam-semesta') ||
+      c.name === form.category
+    );
+    const status = ({ 'Ide':'idea', 'Riset':'research', 'Penulisan':'script', 'Editing':'production', 'Terjadwal':'scheduled', 'Terbit':'published' })[form.status] || 'idea';
+    const { data, error } = await supabase.from('videos').insert({
+      user_id: profile.id, title: form.title.trim(), category_id: category?.id || null, status, format: 'long'
+    }).select('id,title,status,scheduled_at,target_duration_seconds,categories(name)').single();
+    if (error) { notify('Gagal menyimpan: ' + error.message); return; }
+    setVideos(prev => [{ id:data.id, title:data.title, category:data.categories?.name || form.category, status:form.status, date:'—', duration:'—', color:categories.find(c=>c.name===form.category)?.color || '#64d6c4' }, ...prev]);
     setShowModal(false);
     setForm({ title: '', category: 'Sains & Alam', status: 'Ide' });
-    notify('Ide konten berhasil ditambahkan');
+    notify('Konten berhasil disimpan ke Supabase');
+  }
+
+  async function handleAuth(e) {
+    e.preventDefault();
+    if (!supabase) return;
+    setAuthBusy(true);
+    const result = authMode === 'signup'
+      ? await supabase.auth.signUp({ email: authForm.email.trim(), password: authForm.password })
+      : await supabase.auth.signInWithPassword({ email: authForm.email.trim(), password: authForm.password });
+    setAuthBusy(false);
+    if (result.error) { notify(result.error.message); return; }
+    if (authMode === 'signup' && !result.data.session) {
+      notify('Akun dibuat. Periksa email untuk konfirmasi, lalu masuk.');
+      setAuthMode('login');
+    } else {
+      setProfile(result.data.user);
+      notify('Berhasil masuk ke RUANG FAKTA');
+    }
   }
   async function signOut() {
     if (supabase) await supabase.auth.signOut();
@@ -70,6 +131,10 @@ function App() {
     { group: 'PRODUKSI', items: [{ label: 'Ide & Riset', icon: Lightbulb }, { label: 'Naskah', icon: FileText }, { label: 'Analitik', icon: TrendingUp }] }
   ];
   const count = s => videos.filter(v => v.status === s).length;
+
+  if (!isSupabaseConfigured) return <div className="auth-screen"><div className="auth-card"><div className="brand-name">RUANG<span>FAKTA</span></div><p>Konfigurasi Supabase belum tersedia. Periksa Variables and Secrets di Cloudflare.</p></div></div>;
+  if (!profile) return <div className="auth-screen"><form className="auth-card" onSubmit={handleAuth}><div className="brand-name">RUANG<span>FAKTA</span></div><div className="brand-sub">CREATOR STUDIO</div><h1>{authMode === 'signup' ? 'Buat akun kreator' : 'Selamat datang kembali'}</h1><p>{authMode === 'signup' ? 'Daftarkan akun untuk mulai menyimpan ide dan naskah.' : 'Masuk untuk membuka workspace RUANG FAKTA.'}</p><label>Email<input type="email" required autoComplete="email" value={authForm.email} onChange={e=>setAuthForm({...authForm,email:e.target.value})} placeholder="nama@email.com"/></label><label>Password<input type="password" required minLength={6} autoComplete={authMode==='signup'?'new-password':'current-password'} value={authForm.password} onChange={e=>setAuthForm({...authForm,password:e.target.value})} placeholder="Minimal 6 karakter"/></label><button className="primary-button" type="submit" disabled={authBusy}>{authBusy ? 'Memproses...' : authMode === 'signup' ? 'Buat akun' : 'Masuk'}</button><button className="auth-switch" type="button" onClick={()=>setAuthMode(authMode==='signup'?'login':'signup')}>{authMode==='signup'?'Sudah punya akun? Masuk':'Belum punya akun? Daftar'}</button></form>{toast && <div className="toast">{toast}</div>}</div>;
+  if (loadingVideos) return <div className="auth-screen"><div className="auth-card">Memuat workspace RUANG FAKTA...</div></div>;
 
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
