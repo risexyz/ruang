@@ -154,3 +154,6 @@
 /* Search and combined status/category filters. */
 .list-toolbar{flex-wrap:wrap;align-items:center}.category-filter-wrap{min-width:140px}.category-filter-wrap select{max-width:180px}
 @media(max-width:560px){.list-toolbar{flex-wrap:wrap}.search-box{width:100%;flex:1 1 100%}.filter-wrap{flex:1;min-width:0}.filter-wrap select{max-width:100%;width:100%}}
+
+.sort-filter-wrap{min-width:160px}.sort-filter-wrap select{max-width:100%}
+@media(max-width:560px){.sort-filter-wrap{flex:1 1 100%}.sort-filter-wrap select{width:100%}}
