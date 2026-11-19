@@ -40,6 +40,7 @@ function App() {
   const [mobileNav, setMobileNav] = useState(false);
   const [profile, setProfile] = useState(null);
   const [categoryRows, setCategoryRows] = useState([]);
+  const [scriptVideoToOpen, setScriptVideoToOpen] = useState('');
 
   useEffect(() => {
     if (!supabase) { setLoadingVideos(false); return; }
@@ -210,11 +211,11 @@ function App() {
             <div className="panel category-panel"><div className="panel-heading"><div><h3>Jelajahi kategori</h3><p>Ruang untuk setiap rasa ingin tahu.</p></div><Compass size={17} className="muted"/></div><div className="category-grid">{categories.map(c => <button key={c.name} className="category-chip" onClick={() => {setFilter('Semua');setSearch(c.name);setActive('Konten Video')}}><span style={{color:c.color}}>{c.icon}</span><strong>{c.name}</strong><ArrowUpRight size={13}/></button>)}</div></div>
             <div className="quote-panel"><div className="quote-mark">“</div><p>Konten yang baik bukan hanya memberi jawaban, tetapi membuat orang ingin bertanya lebih jauh.</p><span>FILOSOFI RUANG FAKTA</span><div className="quote-decoration">RF</div></div>
           </section>
-        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : <section className="list-page">
+        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : <section className="list-page">
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option>Semua</option>{stages.map(s=><option key={s}>{s}</option>)}</select></div></div>
             <div className="table-head"><span>JUDUL KONTEN</span><span>KATEGORI</span><span>STATUS</span><span>JADWAL</span></div>
-            {visible.length ? visible.map(v=><div className="table-row" key={v.id}><div className="table-title"><div className="video-thumb" style={{'--accent':v.color}}><Play size={14}/></div><div><strong>{v.title}</strong><small>Video • {v.duration}</small></div></div><span className="table-category">{v.category}</span><span><i className={`status-tag ${statusClass(v.status)}`}>{v.status}</i></span><span className="table-date">{v.date}</span></div>) : <div className="empty-state"><Search size={25}/><strong>Konten tidak ditemukan</strong><span>Coba kata kunci atau filter yang berbeda.</span></div>}
+            {visible.length ? visible.map(v=><div className="table-row" key={v.id} role="button" tabIndex={0} title="Buka naskah konten ini" onClick={() => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setScriptVideoToOpen(v.id); setActive('Naskah'); } }}><div className="table-title"><div className="video-thumb" style={{'--accent':v.color}}><Play size={14}/></div><div><strong>{v.title}</strong><small>Video • {v.duration}</small></div></div><span className="table-category">{v.category}</span><span><i className={`status-tag ${statusClass(v.status)}`}>{v.status}</i></span><span className="table-date">{v.date}</span></div>) : <div className="empty-state"><Search size={25}/><strong>Konten tidak ditemukan</strong><span>Coba kata kunci atau filter yang berbeda.</span></div>}
           </div>
           <div className="list-foot">{visible.length} dari {videos.length} konten ditampilkan</div>
         </section>}
@@ -228,7 +229,7 @@ function App() {
 }
 
 
-function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
+function ScriptWriter({ videos, notify, profile, selectedVideoId, onVideoCreated }) {
   const [videoId, setVideoId] = useState(videos[0]?.id || '');
   const [topic, setTopic] = useState('');
   const [duration, setDuration] = useState('8');
@@ -254,8 +255,9 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
   }
 
   useEffect(() => {
-    setVideoId(current => current || videos[0]?.id || '');
-  }, [videos.length]);
+    if (selectedVideoId) setVideoId(selectedVideoId);
+    else setVideoId(current => current || videos[0]?.id || '');
+  }, [selectedVideoId, videos.length]);
 
   useEffect(() => {
     let alive = true;
