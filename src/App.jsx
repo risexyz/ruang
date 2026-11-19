@@ -128,7 +128,7 @@ function App() {
 
   const nav = [
     { group: 'WORKSPACE', items: [{ label: 'Overview', icon: Gauge }, { label: 'Konten Video', icon: Clapperboard }, { label: 'Kalender', icon: CalendarDays }, { label: 'Perpustakaan', icon: FolderOpen }] },
-    { group: 'PRODUKSI', items: [{ label: 'Ide & Riset', icon: Lightbulb }, { label: 'Naskah', icon: FileText }, { label: 'Analitik', icon: TrendingUp }] }
+    { group: 'PRODUKSI', items: [{ label: 'Ide & Riset', icon: Lightbulb }, { label: 'Naskah', icon: FileText }, { label: 'Produksi', icon: Clapperboard }, { label: 'Analitik', icon: TrendingUp }] }
   ];
   const count = s => videos.filter(v => v.status === s).length;
 
@@ -202,7 +202,7 @@ function App() {
             <div className="panel category-panel"><div className="panel-heading"><div><h3>Jelajahi kategori</h3><p>Ruang untuk setiap rasa ingin tahu.</p></div><Compass size={17} className="muted"/></div><div className="category-grid">{categories.map(c => <button key={c.name} className="category-chip" onClick={() => {setFilter('Semua');setSearch(c.name);setActive('Konten Video')}}><span style={{color:c.color}}>{c.icon}</span><strong>{c.name}</strong><ArrowUpRight size={13}/></button>)}</div></div>
             <div className="quote-panel"><div className="quote-mark">“</div><p>Konten yang baik bukan hanya memberi jawaban, tetapi membuat orang ingin bertanya lebih jauh.</p><span>FILOSOFI RUANG FAKTA</span><div className="quote-decoration">RF</div></div>
           </section>
-        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify}/> : <section className="list-page">
+        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : <section className="list-page">
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option>Semua</option>{stages.map(s=><option key={s}>{s}</option>)}</select></div></div>
             <div className="table-head"><span>JUDUL KONTEN</span><span>KATEGORI</span><span>STATUS</span><span>JADWAL</span></div>
@@ -310,6 +310,144 @@ function ScriptWriter({ videos, notify }) {
         <div className="panel-heading"><div><h3>Editor naskah</h3><p>Hasil AI bisa langsung kamu revisi di sini.</p></div><FileText size={18} className="muted"/></div>
         <textarea className="script-draft" value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Naskah yang dihasilkan AI akan muncul di sini. Kamu juga bisa menulis atau menempelkan naskah sendiri."/>
         <div className="script-editor-foot"><span>{draft.trim() ? draft.trim().split(/\s+/).length.toLocaleString('id-ID') + ' kata' : 'Belum ada naskah'}</span><button className="primary-button" onClick={saveDraft} disabled={saving || !draft.trim() || !videoId}><CheckCircle2 size={15}/>{saving ? 'Menyimpan...' : 'Simpan naskah'}</button></div>
+      </div>
+    </div>
+  </section>;
+}
+
+function ProductionStudio({ videos, notify, onCreate }) {
+  const [videoId, setVideoId] = useState(videos[0]?.id || '');
+  const [topic, setTopic] = useState('');
+  const [duration, setDuration] = useState('8');
+  const [style, setStyle] = useState('Dokumenter sinematik');
+  const [production, setProduction] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setVideoId(videos[0]?.id || '');
+  }, [videos.length]);
+
+  useEffect(() => {
+    let alive = true;
+    async function loadProduction() {
+      setProduction(null);
+      if (!videoId) return;
+      const { data, error } = await supabase.from('video_productions')
+        .select('package').eq('video_id', videoId).maybeSingle();
+      if (!alive) return;
+      if (error) notify('Gagal memuat paket produksi: ' + error.message);
+      else if (data?.package) setProduction(data.package);
+      const selected = videos.find(v => String(v.id) === String(videoId));
+      if (selected) setTopic(selected.title);
+    }
+    loadProduction();
+    return () => { alive = false; };
+  }, [videoId]);
+
+  async function generate() {
+    if (!videoId) { notify('Buat konten video terlebih dahulu.'); return; }
+    if (!topic.trim()) { notify('Masukkan topik video terlebih dahulu.'); return; }
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke('generate-production', {
+      body: { topic: topic.trim(), duration: Number(duration), style }
+    });
+    setBusy(false);
+    if (error) {
+      let message = error.message || 'Gagal membuat paket produksi.';
+      try { const payload = await error.context?.json(); if (payload?.error) message = payload.error; } catch {}
+      notify(message);
+      return;
+    }
+    if (!data?.production) { notify(data?.error || 'AI belum mengembalikan paket produksi.'); return; }
+    setProduction(data.production);
+    notify('Paket produksi berhasil dibuat. Periksa dan edit sebelum disimpan.');
+  }
+
+  async function saveProduction() {
+    if (!videoId || !production) return;
+    setSaving(true);
+    const { error } = await supabase.from('video_productions').upsert({
+      video_id: videoId,
+      package: production,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'video_id' });
+    setSaving(false);
+    if (error) { notify('Gagal menyimpan paket produksi: ' + error.message); return; }
+    notify('Paket produksi berhasil disimpan ke Supabase.');
+  }
+
+  function updateScene(index, field, value) {
+    setProduction(prev => ({
+      ...prev,
+      scenes: prev.scenes.map((scene, i) => i === index ? { ...scene, [field]: value } : scene)
+    }));
+  }
+
+  if (!videos.length) return <section className="production-page">
+    <div className="eyebrow"><span/> AI VIDEO WORKFLOW</div>
+    <div className="production-heading"><div><h1>AI Production Studio</h1><p>Buat konten video terlebih dahulu untuk memulai paket produksi.</p></div></div>
+    <div className="panel production-empty"><Clapperboard size={30}/><h3>Belum ada konten video</h3><p>Tambahkan satu ide video ke workspace, lalu susun storyboard dan materi publikasinya.</p><button className="primary-button" onClick={onCreate}><Plus size={16}/> Buat konten video</button></div>
+  </section>;
+
+  return <section className="production-page">
+    <div className="eyebrow"><span/> AI VIDEO WORKFLOW</div>
+    <div className="production-heading"><div><h1>AI Production Studio</h1><p>Ubah satu naskah menjadi panduan produksi dan paket publikasi.</p></div><span className="script-status"><Sparkles size={14}/> RUANG FAKTA AI</span></div>
+    <div className="production-layout">
+      <div className="panel production-controls">
+        <div className="panel-heading"><div><h3>Konsep produksi</h3><p>Tentukan konten yang akan dikembangkan.</p></div><WandSparkles size={18} className="muted"/></div>
+        <label>Konten video
+          <select value={videoId} onChange={e=>setVideoId(e.target.value)}>
+            {videos.map(v=><option key={v.id} value={v.id}>{v.title}</option>)}
+          </select>
+        </label>
+        <label>Topik / ringkasan naskah
+          <textarea rows="5" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Masukkan topik, sudut cerita, atau ringkasan naskah..."/>
+        </label>
+        <div className="production-fields">
+          <label>Durasi target
+            <select value={duration} onChange={e=>setDuration(e.target.value)}><option value="5">5 menit</option><option value="8">8 menit</option><option value="10">10 menit</option><option value="12">12 menit</option><option value="15">15 menit</option></select>
+          </label>
+          <label>Gaya visual
+            <select value={style} onChange={e=>setStyle(e.target.value)}><option>Dokumenter sinematik</option><option>Ilustrasi edukasi</option><option>Misteri atmosferik</option><option>Realistis investigatif</option><option>Motion graphic modern</option></select>
+          </label>
+        </div>
+        <button className="primary-button production-generate" onClick={generate} disabled={busy}>
+          <WandSparkles size={16}/>{busy ? 'Menyusun paket produksi...' : 'Buat Paket Produksi'}
+        </button>
+        <p className="script-hint"><CheckCircle2 size={13}/> AI menyusun arahan produksi. Prompt gambar dapat digunakan di generator gambar pilihanmu; hasil gambar/video tidak dibuat otomatis di tahap ini.</p>
+      </div>
+
+      <div className="production-results">
+        {!production ? <div className="panel production-placeholder"><Clapperboard size={28}/><h3>Ruang produksi siap</h3><p>Pilih konten, tulis topik, lalu buat paket produksi dengan AI.</p></div> : <>
+          <div className="panel production-title-panel">
+            <div className="production-result-head"><div><span className="production-kicker">WORKING TITLE</span><h2>{production.working_title || 'Paket produksi'}</h2></div><button className="primary-button production-save" onClick={saveProduction} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan paket'}</button></div>
+            <div className="production-subhead">Pilihan judul YouTube</div>
+            <div className="production-title-options">{(production.title_options || []).map((title,i)=><button key={i} onClick={()=>setProduction(p=>({...p,working_title:title}))}>{title}</button>)}</div>
+          </div>
+
+          <div className="panel production-section">
+            <div className="panel-heading"><div><h3>Storyboard & voice-over</h3><p>{production.scenes?.length || 0} adegan • arahan visual, kamera, audio, dan narasi</p></div><span className="production-count">{production.scenes?.length || 0} SCENE</span></div>
+            <div className="production-scenes">{(production.scenes || []).map((scene,i)=><article className="production-scene" key={scene.scene_number || i}>
+              <div className="production-scene-top"><span>SCENE {String(scene.scene_number || i+1).padStart(2,'0')}</span><strong>{scene.section || 'Adegan'} · {scene.estimated_seconds || '—'} dtk</strong></div>
+              <label>Arahan visual<textarea rows="2" value={scene.visual_direction || ''} onChange={e=>updateScene(i,'visual_direction',e.target.value)}/></label>
+              <label>Prompt gambar<textarea rows="3" value={scene.image_prompt || ''} onChange={e=>updateScene(i,'image_prompt',e.target.value)}/></label>
+              <div className="production-scene-meta"><span>KAMERA: {scene.camera_motion || '—'}</span><span>AUDIO: {scene.sound_design || '—'}</span></div>
+              <label>Narasi voice-over<textarea rows="4" value={scene.voiceover || ''} onChange={e=>updateScene(i,'voiceover',e.target.value)}/></label>
+            </article>)}</div>
+          </div>
+
+          <div className="panel production-section">
+            <div className="panel-heading"><div><h3>Thumbnail & publikasi</h3><p>Materi visual dan metadata YouTube.</p></div><Sparkles size={17} className="muted"/></div>
+            <div className="production-thumb">
+              <div><span className="production-kicker">THUMBNAIL CONCEPT</span><h4>{production.thumbnail?.concept || 'Konsep thumbnail'}</h4><p>Teks thumbnail: <strong>{production.thumbnail?.text_overlay || '—'}</strong></p></div>
+              <label>Prompt thumbnail<textarea rows="4" value={production.thumbnail?.image_prompt || ''} onChange={e=>setProduction(p=>({...p,thumbnail:{...p.thumbnail,image_prompt:e.target.value}}))}/></label>
+            </div>
+            <label className="production-description">Deskripsi YouTube<textarea rows="7" value={production.description || ''} onChange={e=>setProduction(p=>({...p,description:e.target.value}))}/></label>
+            <div className="production-tags">{(production.tags || []).map((tag,i)=><span key={i}>#{String(tag).replace(/^#/,'')}</span>)}</div>
+          </div>
+          {production.production_notes?.length > 0 && <div className="panel production-section"><div className="panel-heading"><div><h3>Catatan produksi & verifikasi</h3><p>Periksa sebelum proses editing dan publikasi.</p></div></div><ul className="production-notes">{production.production_notes.map((note,i)=><li key={i}>{note}</li>)}</ul></div>}
+        </>}
       </div>
     </div>
   </section>;
