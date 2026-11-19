@@ -598,7 +598,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
   const [production, setProduction] = useState(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploadingScene, setUploadingScene] = useState(null);
+  const [uploadingScene, setUploadingScene] = useState(null);\n  const [generatingScene, setGeneratingScene] = useState(null);
 
   async function hydrateSceneImages(pkg) {
     if (!pkg?.scenes?.length) return pkg;
@@ -664,6 +664,48 @@ function ProductionStudio({ videos, notify, onCreate }) {
     setSaving(false);
     if (error) { notify('Gagal menyimpan paket produksi: ' + error.message); return; }
     notify('Paket produksi berhasil disimpan ke Supabase.');
+  }
+
+  async function generateSceneImage(index) {
+    const scene = production?.scenes?.[index];
+    if (!scene?.image_prompt?.trim()) {
+      notify('Isi prompt gambar untuk adegan ini terlebih dahulu.');
+      return;
+    }
+    if (!videoId) return;
+    setGeneratingScene(index);
+    const { data, error } = await supabase.functions.invoke('generate-scene-image', {
+      body: {
+        videoId,
+        sceneNumber: scene.scene_number || index + 1,
+        prompt: scene.image_prompt.trim()
+      }
+    });
+    if (error || !data?.image_path) {
+      let message = data?.error || error?.message || 'Gagal membuat gambar adegan.';
+      try {
+        const payload = await error?.context?.json();
+        if (payload?.error) message = payload.error;
+      } catch {}
+      setGeneratingScene(null);
+      notify(message);
+      return;
+    }
+    const nextProduction = {
+      ...production,
+      scenes: production.scenes.map((item, i) => i === index
+        ? { ...item, image_path: data.image_path, image_url: data.image_url }
+        : item)
+    };
+    setProduction(nextProduction);
+    const { error: saveError } = await supabase.from('video_productions').upsert({
+      video_id: videoId,
+      package: nextProduction,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'video_id' });
+    setGeneratingScene(null);
+    if (saveError) notify('Gambar dibuat, tetapi paket storyboard gagal disimpan: ' + saveError.message);
+    else notify('Gambar AI berhasil dibuat dan disimpan pada adegan ini.');
   }
 
   async function uploadSceneImage(index, file) {
@@ -780,6 +822,10 @@ function ProductionStudio({ videos, notify, onCreate }) {
                   <Upload size={14}/>{uploadingScene === i ? 'Mengunggah...' : scene.image_path ? 'Ganti gambar adegan' : 'Unggah gambar adegan'}
                   <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingScene !== null} onChange={e=>{uploadSceneImage(i,e.target.files?.[0]);e.target.value='';}}/>
                 </label>
+                <button type="button" className="scene-ai-button" disabled={generatingScene !== null || uploadingScene !== null} onClick={() => generateSceneImage(i)}>
+                  <WandSparkles size={14}/>{generatingScene === i ? 'Sedang membuat gambar...' : scene.image_path ? 'Buat ulang dengan AI' : 'Buat Gambar AI'}
+                </button>
+                <small>Gambar AI memakai kredit API setiap kali tombol diklik. Unggah manual tetap tersedia tanpa biaya API.</small>
                 <small>JPG, PNG, WebP · Maks. 10 MB · tersimpan di penyimpanan privat</small>
               </div>
               <div className="production-scene-meta"><span>KAMERA: {scene.camera_motion || '—'}</span><span>AUDIO: {scene.sound_design || '—'}</span></div>
