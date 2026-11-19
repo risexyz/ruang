@@ -367,7 +367,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       </div>
       <div className="panel script-editor">
         <div className="panel-heading"><div><h3>Editor naskah</h3><p>Hasil AI bisa langsung kamu revisi di sini.</p></div><FileText size={18} className="muted"/></div>
-        <textarea className="script-draft" value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Naskah yang dihasilkan AI akan muncul di sini. Kamu juga bisa menulis atau menempelkan naskah sendiri."/>
+        <textarea className="script-draft" value={draft} onChange={e=>setDraft(e.target.value)} onBlur={()=>{ if (draft.trim() && draft.trim() !== lastSavedDraft.current) saveDraft(draft, { silent: true }); }} placeholder="Naskah yang dihasilkan AI akan muncul di sini. Kamu juga bisa menulis atau menempelkan naskah sendiri."/>
         <div className="script-editor-foot"><span>{draft.trim() ? draft.trim().split(/\s+/).length.toLocaleString('id-ID') + ' kata' : 'Belum ada naskah'}</span><button className="primary-button" onClick={()=>saveDraft()} disabled={saving || !draft.trim()}><CheckCircle2 size={15}/>{saving ? 'Menyimpan...' : 'Simpan perubahan'}</button></div>
       </div>
     </div>
