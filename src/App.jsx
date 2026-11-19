@@ -632,7 +632,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
         if (!alive) return;
         setProduction(hydrated);
         setEditingTasks(hydrated.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false })));
-      } else setEditingTasks(editingTaskDefaults.map(label => ({ label, done: false }));
+      } else setEditingTasks(editingTaskDefaults.map(label => ({ label, done: false })));
       if (scriptError) notify('Naskah belum dapat dimuat: ' + scriptError.message);
       const selected = videos.find(v => String(v.id) === String(videoId));
       if (selected) setTopic(scriptData?.body?.trim() ? selected.title + '\n\nNaskah:\n' + scriptData.body : selected.title);
@@ -656,7 +656,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
       return;
     }
     if (!data?.production) { notify(data?.error || 'AI belum mengembalikan paket produksi.'); return; }
-    setProduction(data.production);
+    setProduction({ ...data.production, editing_tasks: editingTasks.length ? editingTasks : editingTaskDefaults.map(label => ({ label, done: false })) });
     notify('Paket produksi berhasil dibuat. Periksa dan edit sebelum disimpan.');
   }
 
