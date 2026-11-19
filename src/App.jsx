@@ -228,6 +228,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(false);
 
   useEffect(() => {
     setVideoId(current => current || videos[0]?.id || '');
@@ -237,9 +238,11 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
     let alive = true;
     async function loadDraft() {
       if (!videoId) return;
+      setLoadingDraft(true);
       const { data, error } = await supabase.from('video_scripts').select('body').eq('video_id', videoId).maybeSingle();
-      if (alive && !error && data?.body) setDraft(data.body);
+      if (alive && !error) setDraft(data?.body || '');
       if (alive && error) notify('Gagal memuat naskah: ' + error.message);
+      if (alive) setLoadingDraft(false);
     }
     loadDraft();
     return () => { alive = false; };
@@ -247,12 +250,12 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
 
   // Autosave draft after a short pause; no OpenAI request is made here.
   useEffect(() => {
-    if (!draft.trim() || busy) return undefined;
+    if (!draft.trim() || busy || loadingDraft || saving) return undefined;
     const timer = window.setTimeout(() => {
       saveDraft(draft, { silent: true });
     }, 1400);
     return () => window.clearTimeout(timer);
-  }, [draft, videoId, busy]);
+  }, [draft, videoId, busy, loadingDraft, saving]);
 
   async function saveDraft(content = draft, options = {}) {
     const scriptBody = String(content || '').trim();
