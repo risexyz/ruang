@@ -762,6 +762,56 @@ function ProductionStudio({ videos, notify, onCreate }) {
     else notify('Gambar adegan berhasil diunggah dan disimpan.');
   }
 
+  function printProductionGuide() {
+    if (!production) return;
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+    const scenesHtml = (production.scenes || []).map((scene, index) => {
+      const image = scene.image_url
+        ? '<img class="scene-image" src="' + escapeHtml(scene.image_url) + '" alt="Visual adegan ' + (index + 1) + '">'
+        : '<div class="no-image">Belum ada gambar untuk adegan ini</div>';
+      return '<article class="scene"><div class="scene-head"><strong>ADEGAN ' +
+        String(scene.scene_number || index + 1).padStart(2, '0') + ' — ' + escapeHtml(scene.section || 'Adegan') +
+        '</strong><span>' + escapeHtml(scene.estimated_seconds || '—') + ' detik</span></div>' + image +
+        '<h3>Arahan visual</h3><p>' + escapeHtml(scene.visual_direction || '—') +
+        '</p><h3>Prompt gambar</h3><p>' + escapeHtml(scene.image_prompt || '—') +
+        '</p><div class="details"><div><h3>Kamera</h3><p>' + escapeHtml(scene.camera_motion || '—') +
+        '</p></div><div><h3>Audio</h3><p>' + escapeHtml(scene.sound_design || '—') +
+        '</p></div></div><h3>Narasi voice-over</h3><p class="voiceover">' +
+        escapeHtml(scene.voiceover || '—').replace(/\n/g, '<br>') + '</p></article>';
+    }).join('');
+    const popup = window.open('', '_blank');
+    if (!popup) { notify('Izinkan pop-up browser untuk mencetak panduan produksi.'); return; }
+    popup.onload = () => popup.print();
+    popup.document.open();
+    popup.document.write('<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Panduan Produksi - ' +
+      escapeHtml(production.working_title || 'RUANG FAKTA') + '</title><style>' +
+      '*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#172033;line-height:1.5;margin:28px auto;max-width:900px;padding:0 24px}' +
+      'h1{font-size:28px;margin:4px 0 8px}h2{font-size:20px;margin:28px 0 12px;border-bottom:2px solid #d9e1ec;padding-bottom:8px}' +
+      'h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#53647a;margin:16px 0 4px}p{margin:0 0 8px}' +
+      '.eyebrow{font-size:11px;letter-spacing:.14em;color:#167b72;font-weight:bold}.intro{color:#53647a;margin-bottom:22px}' +
+      '.scene{border:1px solid #d9e1ec;border-radius:10px;padding:18px;margin:16px 0;break-inside:avoid}' +
+      '.scene-head{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e6ebf2;padding-bottom:10px}' +
+      '.scene-image{display:block;width:100%;max-height:360px;object-fit:contain;background:#eef2f6;margin:14px 0;border-radius:6px}' +
+      '.no-image{padding:28px;text-align:center;background:#f1f4f8;color:#68778b;margin:14px 0}' +
+      '.details{display:grid;grid-template-columns:1fr 1fr;gap:20px}.voiceover{font-size:15px}' +
+      '.publication{background:#f3f6fa;padding:16px;border-radius:8px;margin:20px 0}' +
+      '@page{size:A4;margin:14mm}@media print{body{margin:0;max-width:none;padding:0}.scene{break-inside:avoid}}' +
+      '</style></head><body><div class="eyebrow">RUANG FAKTA AI · PANDUAN EDITING</div><h1>' +
+      escapeHtml(production.working_title || 'Paket Produksi') +
+      '</h1><p class="intro">Panduan storyboard, visual, audio, dan voice-over untuk proses editing video.</p>' +
+      '<h2>Storyboard & voice-over</h2>' + scenesHtml +
+      '<h2>Materi publikasi</h2><div class="publication"><h3>Deskripsi YouTube</h3><p>' +
+      escapeHtml(production.description || '—').replace(/\n/g, '<br>') +
+      '</p><h3>Tag</h3><p>' +
+      escapeHtml((production.tags || []).map(tag => '#' + String(tag).replace(/^#/, '')).join(' ') || '—') +
+      '</p><h3>Konsep thumbnail</h3><p>' + escapeHtml(production.thumbnail?.concept || '—') +
+      '</p><h3>Teks thumbnail</h3><p>' + escapeHtml(production.thumbnail?.text_overlay || '—') +
+      '</p></div></body></html>');
+    popup.document.close();
+  }
+
   function updateScene(index, field, value) {
     setProduction(prev => ({
       ...prev,
@@ -806,7 +856,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
       <div className="production-results">
         {!production ? <div className="panel production-placeholder"><Clapperboard size={28}/><h3>Ruang produksi siap</h3><p>Pilih konten, tulis topik, lalu buat paket produksi dengan AI.</p></div> : <>
           <div className="panel production-title-panel">
-            <div className="production-result-head"><div><span className="production-kicker">WORKING TITLE</span><h2>{production.working_title || 'Paket produksi'}</h2></div><button className="primary-button production-save" onClick={saveProduction} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan paket'}</button></div>
+            <div className="production-result-head"><div><span className="production-kicker">WORKING TITLE</span><h2>{production.working_title || 'Paket produksi'}</h2></div><div className="production-result-actions"><button type="button" className="subtle-button" onClick={printProductionGuide}><Download size={15}/> Cetak / Simpan PDF</button><button className="primary-button production-save" onClick={saveProduction} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan paket'}</button></div></div>
             <div className="production-subhead">Pilihan judul YouTube</div>
             <div className="production-title-options">{(production.title_options || []).map((title,i)=><button key={i} onClick={()=>setProduction(p=>({...p,working_title:title}))}>{title}</button>)}</div>
           </div>
