@@ -202,7 +202,7 @@ function App() {
             <div className="panel category-panel"><div className="panel-heading"><div><h3>Jelajahi kategori</h3><p>Ruang untuk setiap rasa ingin tahu.</p></div><Compass size={17} className="muted"/></div><div className="category-grid">{categories.map(c => <button key={c.name} className="category-chip" onClick={() => {setFilter('Semua');setSearch(c.name);setActive('Konten Video')}}><span style={{color:c.color}}>{c.icon}</span><strong>{c.name}</strong><ArrowUpRight size={13}/></button>)}</div></div>
             <div className="quote-panel"><div className="quote-mark">“</div><p>Konten yang baik bukan hanya memberi jawaban, tetapi membuat orang ingin bertanya lebih jauh.</p><span>FILOSOFI RUANG FAKTA</span><div className="quote-decoration">RF</div></div>
           </section>
-        </> : <section className="list-page">
+        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify}/> : <section className="list-page">
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option>Semua</option>{stages.map(s=><option key={s}>{s}</option>)}</select></div></div>
             <div className="table-head"><span>JUDUL KONTEN</span><span>KATEGORI</span><span>STATUS</span><span>JADWAL</span></div>
@@ -217,6 +217,102 @@ function App() {
     {showModal && <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setShowModal(false)}}><form className="modal" onSubmit={addVideo}><div className="modal-head"><div><div className="eyebrow"><span/> NEW PROJECT</div><h2>Mulai sebuah cerita.</h2><p>Tambahkan ide konten baru ke workspace.</p></div><button type="button" className="icon-button" onClick={()=>setShowModal(false)}><X size={18}/></button></div><label>Judul konten<input autoFocus required value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Contoh: Rahasia di balik..." /></label><div className="modal-fields"><label>Kategori<select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{categories.map(c=><option key={c.name}>{c.name}</option>)}</select></label><label>Status awal<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{stages.map(s=><option key={s}>{s}</option>)}</select></label></div><div className="modal-actions"><button type="button" className="subtle-button" onClick={()=>setShowModal(false)}>Batal</button><button className="primary-button" type="submit"><Plus size={16}/> Tambahkan konten</button></div></form></div>}
     {toast && <div className="toast"><CheckCircle2 size={17}/>{toast}</div>}
   </div>;
+}
+
+
+function ScriptWriter({ videos, notify }) {
+  const [videoId, setVideoId] = useState(videos[0]?.id || '');
+  const [topic, setTopic] = useState('');
+  const [duration, setDuration] = useState('8');
+  const [style, setStyle] = useState('Dokumenter sinematik');
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setVideoId(videos[0]?.id || '');
+  }, [videos.length]);
+
+  useEffect(() => {
+    let alive = true;
+    async function loadDraft() {
+      setDraft('');
+      if (!videoId) return;
+      const { data, error } = await supabase.from('video_scripts').select('body').eq('video_id', videoId).maybeSingle();
+      if (alive && !error && data?.body) setDraft(data.body);
+      if (alive && error) notify('Gagal memuat naskah: ' + error.message);
+    }
+    loadDraft();
+    return () => { alive = false; };
+  }, [videoId]);
+
+  async function generate() {
+    if (!topic.trim()) { notify('Masukkan ide atau topik video terlebih dahulu.'); return; }
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke('generate-script', {
+      body: { topic: topic.trim(), duration: Number(duration), style }
+    });
+    setBusy(false);
+    if (error) {
+      let message = error.message || 'Gagal membuat naskah.';
+      try { const payload = await error.context?.json(); if (payload?.error) message = payload.error; } catch {}
+      notify(message);
+      return;
+    }
+    if (!data?.script) { notify(data?.error || 'AI belum mengembalikan naskah.'); return; }
+    setDraft(data.script);
+    notify('Draft naskah berhasil dibuat. Periksa dan edit sebelum disimpan.');
+  }
+
+  async function saveDraft() {
+    if (!videoId) { notify('Buat konten video terlebih dahulu.'); return; }
+    if (!draft.trim()) { notify('Naskah masih kosong.'); return; }
+    setSaving(true);
+    const { error } = await supabase.from('video_scripts').upsert({
+      video_id: videoId,
+      body: draft.trim(),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'video_id' });
+    setSaving(false);
+    if (error) { notify('Gagal menyimpan naskah: ' + error.message); return; }
+    notify('Naskah berhasil disimpan ke Supabase.');
+  }
+
+  return <section className="script-page">
+    <div className="eyebrow"><span/> AI-POWERED WORKSPACE</div>
+    <div className="script-heading"><div><h1>AI Script Writer</h1><p>Ubah rasa ingin tahu menjadi naskah video yang siap dikembangkan.</p></div><span className="script-status"><Sparkles size={14}/> RUANG FAKTA AI</span></div>
+    <div className="script-layout">
+      <div className="panel script-controls">
+        <div className="panel-heading"><div><h3>Konsep video</h3><p>Tentukan arah cerita sebelum menulis.</p></div><WandSparkles size={18} className="muted"/></div>
+        <label>Hubungkan ke konten video
+          <select value={videoId} onChange={e=>setVideoId(e.target.value)}>
+            <option value="">Pilih konten video</option>
+            {videos.map(v=><option key={v.id} value={v.id}>{v.title}</option>)}
+          </select>
+        </label>
+        <label>Ide atau topik video
+          <textarea rows="4" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Contoh: Mengapa luar angkasa terdengar sunyi, dan apa yang sebenarnya terjadi di sana?"/>
+        </label>
+        <div className="script-fields">
+          <label>Durasi target
+            <select value={duration} onChange={e=>setDuration(e.target.value)}><option value="5">5 menit</option><option value="8">8 menit</option><option value="10">10 menit</option><option value="12">12 menit</option><option value="15">15 menit</option></select>
+          </label>
+          <label>Gaya bercerita
+            <select value={style} onChange={e=>setStyle(e.target.value)}><option>Dokumenter sinematik</option><option>Edukasi ringan</option><option>Misteri menegangkan</option><option>Storytelling investigatif</option><option>Fakta cepat dan padat</option></select>
+          </label>
+        </div>
+        <button className="primary-button script-generate" onClick={generate} disabled={busy}>
+          <WandSparkles size={16}/>{busy ? 'Sedang menyusun naskah...' : 'Buat naskah dengan AI'}
+        </button>
+        <p className="script-hint"><CheckCircle2 size={13}/> Naskah dibuat dalam bahasa Indonesia. Selalu verifikasi fakta dan sumber sebelum publikasi.</p>
+      </div>
+      <div className="panel script-editor">
+        <div className="panel-heading"><div><h3>Editor naskah</h3><p>Hasil AI bisa langsung kamu revisi di sini.</p></div><FileText size={18} className="muted"/></div>
+        <textarea className="script-draft" value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Naskah yang dihasilkan AI akan muncul di sini. Kamu juga bisa menulis atau menempelkan naskah sendiri."/>
+        <div className="script-editor-foot"><span>{draft.trim() ? draft.trim().split(/\s+/).length.toLocaleString('id-ID') + ' kata' : 'Belum ada naskah'}</span><button className="primary-button" onClick={saveDraft} disabled={saving || !draft.trim() || !videoId}><CheckCircle2 size={15}/>{saving ? 'Menyimpan...' : 'Simpan naskah'}</button></div>
+      </div>
+    </div>
+  </section>;
 }
 
 function Stat({icon:Icon,label,value,note,tone}) { return <div className="stat-card"><div className={`stat-icon ${tone}`}><Icon size={18}/></div><div className="stat-label">{label}</div><div className="stat-value">{value}</div><div className="stat-note">{note}</div></div>; }
