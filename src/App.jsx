@@ -236,7 +236,7 @@ function App() {
             <div className="panel category-panel"><div className="panel-heading"><div><h3>Jelajahi kategori</h3><p>Ruang untuk setiap rasa ingin tahu.</p></div><Compass size={17} className="muted"/></div><div className="category-grid">{categories.map(c => <button key={c.name} className="category-chip" onClick={() => {setFilter('Semua');setSearch(c.name);setActive('Konten Video')}}><span style={{color:c.color}}>{c.icon}</span><strong>{c.name}</strong><ArrowUpRight size={13}/></button>)}</div></div>
             <div className="quote-panel"><div className="quote-mark">“</div><p>Konten yang baik bukan hanya memberi jawaban, tetapi membuat orang ingin bertanya lebih jauh.</p><span>FILOSOFI RUANG FAKTA</span><div className="quote-decoration">RF</div></div>
           </section>
-        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : active === 'Kalender' ? <CalendarPage videos={videos}/> : active === 'Perpustakaan' ? <LibraryPage videos={videos} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }}/> : <section className="list-page">
+        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : active === 'Kalender' ? <CalendarPage videos={videos}/> : active === 'Perpustakaan' ? <LibraryPage videos={videos} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }}/> : active === 'Analitik' ? <AnalyticsPage videos={videos}/> : <section className="list-page">
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option>Semua</option>{stages.map(s=><option key={s}>{s}</option>)}</select></div></div>
             <div className="table-head"><span>JUDUL KONTEN</span><span>KATEGORI</span><span>STATUS</span><span>JADWAL</span></div>
@@ -642,6 +642,43 @@ function ProductionStudio({ videos, notify, onCreate }) {
           {production.production_notes?.length > 0 && <div className="panel production-section"><div className="panel-heading"><div><h3>Catatan produksi & verifikasi</h3><p>Periksa sebelum proses editing dan publikasi.</p></div></div><ul className="production-notes">{production.production_notes.map((note,i)=><li key={i}>{note}</li>)}</ul></div>}
         </>}
       </div>
+    </div>
+  </section>;
+}
+
+function AnalyticsPage({ videos }) {
+  const total = videos.length;
+  const development = videos.filter(v => ['Ide', 'Riset', 'Penulisan'].includes(v.status)).length;
+  const published = videos.filter(v => v.status === 'Terbit').length;
+  const scheduled = videos.filter(v => v.status === 'Terjadwal').length;
+  const stageCounts = [...stages, 'Arsip'].map(status => ({ status, count: videos.filter(v => v.status === status).length }));
+  const categoryCounts = [...new Set(videos.map(v => v.category || 'Tanpa kategori'))]
+    .map(category => ({ category, count: videos.filter(v => (v.category || 'Tanpa kategori') === category).length }))
+    .sort((a, b) => b.count - a.count);
+  return <section className="list-page">
+    <div className="eyebrow"><span/> PERFORMA WORKSPACE</div>
+    <div className="list-title-row"><div><h1>Analitik</h1><p>Ringkasan perkembangan konten RUANG FAKTA berdasarkan data tersimpan.</p></div></div>
+    <section className="stats-grid">
+      <Stat icon={Video} label="Total konten" value={total} note="Semua konten tersimpan" tone="blue"/>
+      <Stat icon={Lightbulb} label="Dalam pengembangan" value={development} note="Ide, riset, dan naskah" tone="purple"/>
+      <Stat icon={Clock3} label="Terjadwal" value={scheduled} note="Menunggu publikasi" tone="amber"/>
+      <Stat icon={Target} label="Sudah diterbitkan" value={published} note="Konten berstatus terbit" tone="green"/>
+    </section>
+    <div className="content-grid">
+      <div className="panel pipeline-panel">
+        <div className="panel-heading"><div><h3>Distribusi status</h3><p>Jumlah konten pada setiap tahap produksi.</p></div><Activity size={17} className="muted"/></div>
+        <div className="pipeline">{stageCounts.map((item, i) => <div className="pipeline-row" key={item.status}><div className="pipeline-label"><span className={`stage-dot stage-${i}`}/>{item.status}</div><div className="pipeline-track"><span style={{ width: `${total ? item.count / total * 100 : 0}%` }}/></div><strong>{item.count}</strong></div>)}</div>
+        <div className="pipeline-foot"><span className="live-dot"/> Total workspace <span className="pipeline-total">{total} konten</span></div>
+      </div>
+      <div className="panel category-panel">
+        <div className="panel-heading"><div><h3>Konten per kategori</h3><p>Topik yang paling banyak dikelola.</p></div><Compass size={17} className="muted"/></div>
+        {categoryCounts.length ? <div className="pipeline">{categoryCounts.map((item, i) => <div className="pipeline-row" key={item.category}><div className="pipeline-label">{item.category}</div><div className="pipeline-track"><span style={{ width: `${total ? item.count / total * 100 : 0}%` }}/></div><strong>{item.count}</strong></div>)}</div> : <div className="empty-state"><strong>Belum ada data kategori</strong></div>}
+      </div>
+    </div>
+    <div className="panel list-panel" style={{ marginTop: 20, padding: 22 }}>
+      <div className="panel-heading"><div><h3>Ringkasan konten</h3><p>Perbandingan seluruh konten dalam workspace.</p></div></div>
+      {total ? <div className="table-head"><span>TAHAP PRODUKSI</span><span>JUMLAH</span><span>PROPORSI</span></div> : null}
+      {total ? stageCounts.filter(item => item.count > 0).map(item => <div className="table-row" key={item.status} style={{ gridTemplateColumns: '1.5fr .5fr 1fr' }}><strong>{item.status}</strong><span>{item.count} konten</span><span>{Math.round(item.count / total * 100)}%</span></div>) : <div className="empty-state"><strong>Belum ada konten untuk dianalisis</strong><span>Konten yang disimpan akan otomatis diringkas di halaman ini.</span></div>}
     </div>
   </section>;
 }
