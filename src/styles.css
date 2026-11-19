@@ -157,3 +157,13 @@
 
 .sort-filter-wrap{min-width:160px}.sort-filter-wrap select{max-width:100%}
 @media(max-width:560px){.sort-filter-wrap{flex:1 1 100%}.sort-filter-wrap select{width:100%}}
+
+
+/* Six compact status summaries on the video content page. */
+.video-status-stats{grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 18px}
+.video-status-stats .stat-card{min-height:108px;padding:12px}
+.video-status-stats .stat-icon{width:26px;height:26px;margin-bottom:8px}
+.video-status-stats .stat-value{font-size:20px}
+.video-status-stats .stat-note{left:12px;right:8px;bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:1100px){.video-status-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){.video-status-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.video-status-stats .stat-card{min-height:104px}}
