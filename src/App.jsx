@@ -4,7 +4,7 @@ import {
   CheckCircle2, ChevronDown, CircleHelp, Clapperboard, Clock3, Command,
   Compass, FileText, Filter, FolderOpen, Gauge, Lightbulb, LogOut, Menu, MoreHorizontal,
   Play, Plus, Search, Settings2, Sparkles, Target, TrendingUp, Video, Trash2,
-  WandSparkles, X, Youtube
+  WandSparkles, Upload, X, Youtube
 } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
@@ -598,6 +598,17 @@ function ProductionStudio({ videos, notify, onCreate }) {
   const [production, setProduction] = useState(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingScene, setUploadingScene] = useState(null);
+
+  async function hydrateSceneImages(pkg) {
+    if (!pkg?.scenes?.length) return pkg;
+    const scenes = await Promise.all(pkg.scenes.map(async scene => {
+      if (!scene.image_path) return scene;
+      const { data } = await supabase.storage.from('production-assets').createSignedUrl(scene.image_path, 3600);
+      return { ...scene, image_url: data?.signedUrl || '' };
+    }));
+    return { ...pkg, scenes };
+  }
 
   useEffect(() => {
     setVideoId(videos[0]?.id || '');
@@ -614,7 +625,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
       ]);
       if (!alive) return;
       if (error) notify('Gagal memuat paket produksi: ' + error.message);
-      else if (data?.package) setProduction(data.package);
+      else if (data?.package) setProduction(await hydrateSceneImages(data.package));
       if (scriptError) notify('Naskah belum dapat dimuat: ' + scriptError.message);
       const selected = videos.find(v => String(v.id) === String(videoId));
       if (selected) setTopic(scriptData?.body?.trim() ? selected.title + '\n\nNaskah:\n' + scriptData.body : selected.title);
@@ -653,6 +664,59 @@ function ProductionStudio({ videos, notify, onCreate }) {
     setSaving(false);
     if (error) { notify('Gagal menyimpan paket produksi: ' + error.message); return; }
     notify('Paket produksi berhasil disimpan ke Supabase.');
+  }
+
+  async function uploadSceneImage(index, file) {
+    if (!file || !videoId) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      notify('Gunakan gambar JPG, PNG, atau WebP.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      notify('Ukuran gambar maksimal 10 MB.');
+      return;
+    }
+    setUploadingScene(index);
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      setUploadingScene(null);
+      notify('Sesi login tidak ditemukan. Silakan masuk kembali.');
+      return;
+    }
+    const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    const sceneNumber = production.scenes[index].scene_number || index + 1;
+    const path = userData.user.id + '/' + videoId + '/scene-' + sceneNumber + '-' + Date.now() + '.' + extension;
+    const { error: uploadError } = await supabase.storage.from('production-assets').upload(path, file, {
+      contentType: file.type,
+      cacheControl: '3600',
+      upsert: false
+    });
+    if (uploadError) {
+      setUploadingScene(null);
+      notify('Gagal mengunggah gambar: ' + uploadError.message);
+      return;
+    }
+    const { data: signedData, error: signedError } = await supabase.storage.from('production-assets').createSignedUrl(path, 3600);
+    if (signedError) {
+      setUploadingScene(null);
+      notify('Gambar tersimpan, tetapi pratinjau gagal dimuat: ' + signedError.message);
+      return;
+    }
+    const nextProduction = {
+      ...production,
+      scenes: production.scenes.map((scene, i) => i === index
+        ? { ...scene, image_path: path, image_url: signedData.signedUrl }
+        : scene)
+    };
+    setProduction(nextProduction);
+    const { error: saveError } = await supabase.from('video_productions').upsert({
+      video_id: videoId,
+      package: nextProduction,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'video_id' });
+    setUploadingScene(null);
+    if (saveError) notify('Gambar terunggah, tetapi paket belum tersimpan: ' + saveError.message);
+    else notify('Gambar adegan berhasil diunggah dan disimpan.');
   }
 
   function updateScene(index, field, value) {
@@ -710,6 +774,14 @@ function ProductionStudio({ videos, notify, onCreate }) {
               <div className="production-scene-top"><span>SCENE {String(scene.scene_number || i+1).padStart(2,'0')}</span><strong>{scene.section || 'Adegan'} · {scene.estimated_seconds || '—'} dtk</strong></div>
               <label>Arahan visual<textarea rows="2" value={scene.visual_direction || ''} onChange={e=>updateScene(i,'visual_direction',e.target.value)}/></label>
               <label>Prompt gambar<textarea rows="3" value={scene.image_prompt || ''} onChange={e=>updateScene(i,'image_prompt',e.target.value)}/></label>
+              <div className="scene-visual-upload">
+                {scene.image_url ? <img src={scene.image_url} alt={'Visual adegan ' + (scene.scene_number || i + 1)} /> : <div className="scene-visual-empty"><Clapperboard size={20}/><span>Belum ada gambar visual</span></div>}
+                <label className="scene-upload-control">
+                  <Upload size={14}/>{uploadingScene === i ? 'Mengunggah...' : scene.image_path ? 'Ganti gambar adegan' : 'Unggah gambar adegan'}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingScene !== null} onChange={e=>{uploadSceneImage(i,e.target.files?.[0]);e.target.value='';}}/>
+                </label>
+                <small>JPG, PNG, WebP · Maks. 10 MB · tersimpan di penyimpanan privat</small>
+              </div>
               <div className="production-scene-meta"><span>KAMERA: {scene.camera_motion || '—'}</span><span>AUDIO: {scene.sound_design || '—'}</span></div>
               <label>Narasi voice-over<textarea rows="4" value={scene.voiceover || ''} onChange={e=>updateScene(i,'voiceover',e.target.value)}/></label>
             </article>)}</div>
