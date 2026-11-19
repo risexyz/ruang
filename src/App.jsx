@@ -812,6 +812,26 @@ function ProductionStudio({ videos, notify, onCreate }) {
     popup.document.close();
   }
 
+  const editingTaskDefaults = [
+    'Pastikan semua gambar adegan sudah tersedia',
+    'Rekam atau siapkan voice-over setiap adegan',
+    'Susun gambar sesuai urutan storyboard',
+    'Atur durasi dan transisi antaradegan',
+    'Tambahkan musik latar dan efek suara',
+    'Periksa kualitas audio dan visual',
+    'Ekspor video final dan tonton ulang'
+  ];
+
+  function toggleEditingTask(index, checked) {
+    setProduction(prev => {
+      const tasks = prev.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false }));
+      return {
+        ...prev,
+        editing_tasks: tasks.map((task, i) => i === index ? { ...task, done: checked } : task)
+      };
+    });
+  }
+
   function updateScene(index, field, value) {
     setProduction(prev => ({
       ...prev,
@@ -882,6 +902,12 @@ function ProductionStudio({ videos, notify, onCreate }) {
               <div className="production-scene-meta"><span>KAMERA: {scene.camera_motion || '—'}</span><span>AUDIO: {scene.sound_design || '—'}</span></div>
               <label>Narasi voice-over<textarea rows="4" value={scene.voiceover || ''} onChange={e=>updateScene(i,'voiceover',e.target.value)}/></label>
             </article>)}</div>
+          </div>
+
+          <div className="panel production-section editing-checklist-panel">
+            <div className="panel-heading"><div><h3>Checklist editing video</h3><p>Tandai setiap pekerjaan setelah selesai. Simpan paket agar progres tersimpan.</p></div><span className="production-count">{(production.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false }))).filter(task => task.done).length}/{editingTaskDefaults.length} SELESAI</span></div>
+            <div className="editing-progress"><span style={{width: ((production.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false }))).filter(task => task.done).length / editingTaskDefaults.length * 100) + '%'}}/></div>
+            <div className="editing-task-list">{(production.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false }))).map((task,i)=><label className={'editing-task' + (task.done ? ' is-done' : '')} key={i}><input type="checkbox" checked={!!task.done} onChange={e=>toggleEditingTask(i,e.target.checked)}/><span>{task.label || editingTaskDefaults[i]}</span></label>)}</div>
           </div>
 
           <div className="panel production-section">
