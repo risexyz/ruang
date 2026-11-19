@@ -122,6 +122,16 @@ function App() {
     notify('Status konten berhasil diubah menjadi ' + nextStatus);
   }
 
+  async function updateVideoSchedule(video, localDateTime) {
+    if (!profile) return;
+    const scheduledAt = localDateTime ? new Date(localDateTime).toISOString() : null;
+    const updates = { scheduled_at: scheduledAt };
+    if (scheduledAt) updates.status = 'scheduled';
+    const { error } = await supabase.from('videos').update(updates).eq('id', video.id).eq('user_id', profile.id);
+    if (error) { notify('Gagal menyimpan jadwal: ' + error.message); return; }
+    setVideos(prev => prev.map(item => item.id === video.id ? { ...item, scheduledAt, date: scheduledAt ? new Date(scheduledAt).toLocaleDateString('id-ID') : '—', ...(scheduledAt ? { status: 'Terjadwal' } : {}) } : item));
+    notify(scheduledAt ? 'Jadwal publikasi berhasil disimpan' : 'Jadwal publikasi dihapus');
+  }
   async function deleteVideo(video) {
     if (!profile || !window.confirm(`Hapus konten "${video.title}" beserta naskah dan data produksinya? Tindakan ini tidak bisa dibatalkan.`)) return;
     const { error: scriptError } = await supabase.from('video_scripts').delete().eq('video_id', video.id);
@@ -249,7 +259,7 @@ function App() {
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option>Semua</option>{stages.map(s=><option key={s}>{s}</option>)}</select></div></div>
             <div className="table-head"><span>JUDUL KONTEN</span><span>KATEGORI</span><span>STATUS</span><span>JADWAL</span></div>
-            {visible.length ? visible.map(v=><div className="table-row" key={v.id} role="button" tabIndex={0} title="Buka naskah konten ini" onClick={() => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setScriptVideoToOpen(v.id); setActive('Naskah'); } }}><div className="table-title"><div className="video-thumb" style={{'--accent':v.color}}><Play size={14}/></div><div><strong>{v.title}</strong><small>Video • {v.duration}</small></div></div><span className="table-category">{v.category}</span><span className="status-cell" onClick={e=>e.stopPropagation()}><select className={`status-select status-${statusClass(v.status)}`} aria-label={`Ubah status ${v.title}`} value={v.status} onChange={e=>updateVideoStatus(v,e.target.value)}><option value="Ide">Ide</option><option value="Riset">Riset</option><option value="Penulisan">Penulisan</option><option value="Editing">Editing</option><option value="Terjadwal">Terjadwal</option><option value="Terbit">Terbit</option><option value="Arsip">Arsip</option></select></span><span className="table-date">{v.date}</span><button type="button" className="delete-video-button" title="Hapus konten" aria-label={`Hapus ${v.title}`} onClick={e=>{e.stopPropagation();deleteVideo(v);}}><Trash2 size={15}/></button></div>) : <div className="empty-state"><Search size={25}/><strong>Konten tidak ditemukan</strong><span>Coba kata kunci atau filter yang berbeda.</span></div>}
+            {visible.length ? visible.map(v=><div className="table-row" key={v.id} role="button" tabIndex={0} title="Buka naskah konten ini" onClick={() => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setScriptVideoToOpen(v.id); setActive('Naskah'); } }}><div className="table-title"><div className="video-thumb" style={{'--accent':v.color}}><Play size={14}/></div><div><strong>{v.title}</strong><small>Video • {v.duration}</small></div></div><span className="table-category">{v.category}</span><span className="status-cell" onClick={e=>e.stopPropagation()}><select className={`status-select status-${statusClass(v.status)}`} aria-label={`Ubah status ${v.title}`} value={v.status} onChange={e=>updateVideoStatus(v,e.target.value)}><option value="Ide">Ide</option><option value="Riset">Riset</option><option value="Penulisan">Penulisan</option><option value="Editing">Editing</option><option value="Terjadwal">Terjadwal</option><option value="Terbit">Terbit</option><option value="Arsip">Arsip</option></select></span><span className="schedule-cell" onClick={e=>e.stopPropagation()}><input className="schedule-input" type="datetime-local" aria-label={`Atur jadwal publikasi ${v.title}`} title="Atur tanggal dan jam publikasi" value={v.scheduledAt ? (() => { const d = new Date(v.scheduledAt); const local = new Date(d.getTime() - d.getTimezoneOffset()*60000); return local.toISOString().slice(0,16); })() : ""} onChange={e=>updateVideoSchedule(v,e.target.value)} /></span><button type="button" className="delete-video-button" title="Hapus konten" aria-label={`Hapus ${v.title}`} onClick={e=>{e.stopPropagation();deleteVideo(v);}}><Trash2 size={15}/></button></div>) : <div className="empty-state"><Search size={25}/><strong>Konten tidak ditemukan</strong><span>Coba kata kunci atau filter yang berbeda.</span></div>}
           </div>
           <div className="list-foot">{visible.length} dari {videos.length} konten ditampilkan</div>
         </section>}
@@ -273,7 +283,7 @@ function CalendarPage({ videos }) {
     <div className="panel list-panel">
       {scheduled.length ? <div className="calendar-list">{scheduled.map(video => <div className="calendar-entry" key={video.id}>
         <div className="calendar-date"><strong>{new Date(video.scheduledAt).toLocaleDateString('id-ID',{day:'2-digit'})}</strong><span>{new Date(video.scheduledAt).toLocaleDateString('id-ID',{month:'short',year:'numeric'})}</span></div>
-        <div className="calendar-entry-info"><strong>{video.title}</strong><span>{video.category} · {video.duration}</span></div>
+        <div className="calendar-entry-info"><strong>{video.title}</strong><span>{video.category} · {video.duration} · Pukul {new Date(video.scheduledAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span></div>
         <i className={`status-tag ${statusClass(video.status)}`}>{video.status}</i>
       </div>)}</div> : <div className="empty-state"><CalendarDays size={27}/><strong>Belum ada jadwal publikasi</strong><span>Konten akan muncul di sini setelah memiliki tanggal jadwal.</span></div>}
     </div>
