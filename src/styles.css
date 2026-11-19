@@ -208,3 +208,5 @@
 .scene-ai-button:disabled{opacity:.55;cursor:wait}
 
 .production-result-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.production-result-actions .subtle-button{white-space:nowrap}@media(max-width:640px){.production-result-head{align-items:flex-start;gap:14px;flex-direction:column}.production-result-actions{width:100%}.production-result-actions button{flex:1;justify-content:center}}
+
+.editing-checklist-panel .editing-progress{height:7px;background:rgba(130,150,180,.16);border-radius:99px;overflow:hidden;margin:4px 0 16px}.editing-checklist-panel .editing-progress span{display:block;height:100%;background:var(--cyan);border-radius:99px;transition:width .2s}.editing-task-list{display:grid;grid-template-columns:1fr 1fr;gap:10px}.editing-task{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:9px;color:var(--text);font-size:13px;line-height:1.45;cursor:pointer}.editing-task input{accent-color:var(--cyan);margin:2px 0 0;flex:0 0 auto}.editing-task.is-done span{color:var(--muted);text-decoration:line-through}@media(max-width:640px){.editing-task-list{grid-template-columns:1fr}}
