@@ -247,6 +247,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
         ...current,
         topic: values.topic ?? topic,
         draft: values.draft ?? draft,
+        editorCleared: false,
         savedAt: Date.now()
       }));
     } catch {}
@@ -263,7 +264,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       try { cached = JSON.parse(window.localStorage.getItem(cacheKey) || 'null'); } catch {}
       if (alive && cached) {
         setTopic(cached.topic || '');
-        setDraft(cached.draft || '');
+        setDraft(cached.editorCleared ? '' : (cached.draft || ''));
       }
       if (!videoId) { if (alive) setLoadingDraft(false); return; }
       setLoadingDraft(true);
@@ -271,8 +272,8 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       if (alive && !error) {
         const dbTime = data?.updated_at ? Date.parse(data.updated_at) : 0;
         const useCache = cached?.savedAt && cached.savedAt > dbTime;
-        const savedBody = useCache ? (cached.draft || '') : (data?.body || '');
-        const savedTopic = useCache ? (cached.topic || '') : (data?.topic || '');
+        const savedBody = cached?.editorCleared ? '' : (useCache ? (cached.draft || '') : (data?.body || ''));
+        const savedTopic = useCache || cached?.editorCleared ? (cached?.topic || '') : (data?.topic || '');
         lastSavedDraft.current = data?.body || '';
         setDraft(savedBody);
         setTopic(savedTopic);
@@ -348,11 +349,21 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
     }
     lastSavedDraft.current = scriptBody;
     try {
-      window.localStorage.setItem(`ruang-fakta-script:${profile.id}:${targetVideoId}`, JSON.stringify({
-        topic, draft: scriptBody, savedAt: Date.now()
-      }));
+      const savedKey = `ruang-fakta-script:${profile.id}:${targetVideoId}`;
+      if (options.clearAfterSave) {
+        window.localStorage.setItem(savedKey, JSON.stringify({
+          topic, draft: '', editorCleared: true, savedAt: Date.now()
+        }));
+        setDraft('');
+      } else {
+        window.localStorage.setItem(savedKey, JSON.stringify({
+          topic, draft: scriptBody, editorCleared: false, savedAt: Date.now()
+        }));
+      }
     } catch {}
-    if (!options.silent) notify('Naskah berhasil disimpan otomatis ke Konten Video dan Supabase.');
+    if (!options.silent) notify(options.clearAfterSave
+      ? 'Naskah berhasil disimpan ke Konten Video. Editor sudah dikosongkan.'
+      : 'Naskah berhasil disimpan otomatis ke Konten Video dan Supabase.');
     return true;
   }
 
@@ -405,7 +416,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       <div className="panel script-editor">
         <div className="panel-heading"><div><h3>Editor naskah</h3><p>Hasil AI bisa langsung kamu revisi di sini.</p></div><FileText size={18} className="muted"/></div>
         <textarea className="script-draft" value={draft} onChange={e=>{setDraft(e.target.value);cacheEditor({draft:e.target.value});}} onBlur={()=>{ if (draft.trim() && draft.trim() !== lastSavedDraft.current) saveDraft(draft, { silent: true }); }} placeholder="Naskah yang dihasilkan AI akan muncul di sini. Kamu juga bisa menulis atau menempelkan naskah sendiri."/>
-        <div className="script-editor-foot"><span>{draft.trim() ? draft.trim().split(/\s+/).length.toLocaleString('id-ID') + ' kata' : 'Belum ada naskah'}</span><button className="primary-button" onClick={()=>saveDraft()} disabled={saving || !draft.trim()}><CheckCircle2 size={15}/>{saving ? 'Menyimpan...' : 'Simpan perubahan'}</button></div>
+        <div className="script-editor-foot"><span>{draft.trim() ? draft.trim().split(/\s+/).length.toLocaleString('id-ID') + ' kata' : 'Belum ada naskah'}</span><button className="primary-button" onClick={()=>saveDraft(draft, { clearAfterSave: true })} disabled={saving || !draft.trim()}><CheckCircle2 size={15}/>{saving ? 'Menyimpan...' : 'Simpan perubahan'}</button></div>
       </div>
     </div>
   </section>;
