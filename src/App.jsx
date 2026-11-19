@@ -35,6 +35,7 @@ function App() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('Semua');
   const [categoryFilter, setCategoryFilter] = useState('Semua');
+  const [sortBy, setSortBy] = useState('terbaru');
   const [showModal, setShowModal] = useState(false);
   const [toast, setToast] = useState('');
   const [form, setForm] = useState({ title: '', category: 'Sains & Alam', status: 'Ide' });
@@ -86,11 +87,23 @@ function App() {
     return () => { alive = false; };
   }, [profile]);
 
-  const visible = useMemo(() => videos.filter(v =>
-    (filter === 'Semua' || v.status === filter) &&
-    (categoryFilter === 'Semua' || v.category === categoryFilter) &&
-    (v.title.toLowerCase().includes(search.toLowerCase()) || v.category.toLowerCase().includes(search.toLowerCase()))
-  ), [videos, filter, categoryFilter, search]);
+  const visible = useMemo(() => {
+    const filtered = videos.filter(v =>
+      (filter === 'Semua' || v.status === filter) &&
+      (categoryFilter === 'Semua' || v.category === categoryFilter) &&
+      (v.title.toLowerCase().includes(search.toLowerCase()) || v.category.toLowerCase().includes(search.toLowerCase()))
+    );
+    return filtered.sort((a, b) => {
+      if (sortBy === 'judul') return a.title.localeCompare(b.title, 'id');
+      if (sortBy === 'jadwal') {
+        if (!a.scheduledAt && !b.scheduledAt) return 0;
+        if (!a.scheduledAt) return 1;
+        if (!b.scheduledAt) return -1;
+        return new Date(a.scheduledAt) - new Date(b.scheduledAt);
+      }
+      return 0;
+    });
+  }, [videos, filter, categoryFilter, search, sortBy]);
 
   function notify(message) {
     setToast(message);
@@ -278,7 +291,7 @@ function App() {
           </section>
         </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : active === 'Kalender' ? <CalendarPage videos={videos}/> : active === 'Perpustakaan' ? <LibraryPage videos={videos} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }}/> : active === 'Analitik' ? <AnalyticsPage videos={videos}/> : active === 'Ide & Riset' ? <IdeasResearchPage videos={videos} onCreate={() => { setForm(current => ({ ...current, status: 'Ide' })); setShowModal(true); }} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} /> : <section className="list-page">
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
-          <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select aria-label="Filter status" value={filter} onChange={e=>setFilter(e.target.value)}><option value="Semua">Semua status</option>{[...stages, 'Arsip'].map(s=><option key={s}>{s}</option>)}</select></div><div className="filter-wrap category-filter-wrap"><select aria-label="Filter kategori" value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)}><option value="Semua">Semua kategori</option>{categoryRows.map(item=><option key={item.id} value={item.name}>{item.name}</option>)}</select></div></div>
+          <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select aria-label="Filter status" value={filter} onChange={e=>setFilter(e.target.value)}><option value="Semua">Semua status</option>{[...stages, 'Arsip'].map(s=><option key={s}>{s}</option>)}</select></div><div className="filter-wrap category-filter-wrap"><select aria-label="Filter kategori" value={categoryFilter} onChange={e=>setCategoryFilter(e.target.value)}><option value="Semua">Semua kategori</option>{categoryRows.map(item=><option key={item.id} value={item.name}>{item.name}</option>)}</select></div><div className="filter-wrap sort-filter-wrap"><select aria-label="Urutkan konten" value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="terbaru">Terbaru ditambahkan</option><option value="judul">Judul A–Z</option><option value="jadwal">Jadwal terdekat</option></select></div></div>
             <div className="table-head"><span>JUDUL KONTEN</span><span>KATEGORI</span><span>STATUS</span><span>JADWAL</span><span></span></div>
             {visible.length ? visible.map(v=><div className="table-row" key={v.id} role="button" tabIndex={0} title="Buka naskah konten ini" onClick={() => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setScriptVideoToOpen(v.id); setActive('Naskah'); } }}><div className="table-title" onClick={e=>e.stopPropagation()}><div className="video-thumb" style={{'--accent':v.color}}><Play size={14}/></div><div><input className="video-title-input" aria-label={`Edit judul ${v.title}`} defaultValue={v.title} key={`${v.id}-${v.title}`} onBlur={e=>updateVideoTitle(v,e.target.value)} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}}/><small>Video • {v.duration}</small></div></div><span className="table-category category-cell" onClick={e=>e.stopPropagation()}><select className="category-select" aria-label={`Ubah kategori ${v.title}`} value={categoryRows.some(item=>item.name===v.category)?v.category:''} onChange={e=>updateVideoCategory(v,e.target.value)}><option value="" disabled>Pilih kategori</option>{categoryRows.map(item=><option key={item.id} value={item.name}>{item.name}</option>)}</select></span><span className="status-cell" onClick={e=>e.stopPropagation()}><select className={`status-select status-${statusClass(v.status)}`} aria-label={`Ubah status ${v.title}`} value={v.status} onChange={e=>updateVideoStatus(v,e.target.value)}><option value="Ide">Ide</option><option value="Riset">Riset</option><option value="Penulisan">Penulisan</option><option value="Editing">Editing</option><option value="Terjadwal">Terjadwal</option><option value="Terbit">Terbit</option><option value="Arsip">Arsip</option></select></span><span className="schedule-cell" onClick={e=>e.stopPropagation()}><input className="schedule-input" type="datetime-local" aria-label={`Atur jadwal publikasi ${v.title}`} title="Atur tanggal dan jam publikasi" value={v.scheduledAt ? (() => { const d = new Date(v.scheduledAt); const local = new Date(d.getTime() - d.getTimezoneOffset()*60000); return local.toISOString().slice(0,16); })() : ""} onChange={e=>updateVideoSchedule(v,e.target.value)} /></span><button type="button" className="delete-video-button" title="Hapus konten" aria-label={`Hapus ${v.title}`} onClick={e=>{e.stopPropagation();deleteVideo(v);}}><Trash2 size={15}/></button></div>) : <div className="empty-state"><Search size={25}/><strong>Konten tidak ditemukan</strong><span>Coba kata kunci atau filter yang berbeda.</span></div>}
           </div>
