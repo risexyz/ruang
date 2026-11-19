@@ -150,3 +150,7 @@
 .category-select:hover,.category-select:focus{border-color:#365b62;background:#0b1422;color:#dbe4ef}
 .category-select option{background:#111c2b;color:#e7edf6}
 @media(max-width:560px){.video-title-input{font-size:9px}.category-cell{display:none!important}}
+
+/* Search and combined status/category filters. */
+.list-toolbar{flex-wrap:wrap;align-items:center}.category-filter-wrap{min-width:140px}.category-filter-wrap select{max-width:180px}
+@media(max-width:560px){.list-toolbar{flex-wrap:wrap}.search-box{width:100%;flex:1 1 100%}.filter-wrap{flex:1;min-width:0}.filter-wrap select{max-width:100%;width:100%}}
