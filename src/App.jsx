@@ -352,9 +352,10 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       const savedKey = `ruang-fakta-script:${profile.id}:${targetVideoId}`;
       if (options.clearAfterSave) {
         window.localStorage.setItem(savedKey, JSON.stringify({
-          topic, draft: '', editorCleared: true, savedAt: Date.now()
+          topic: '', draft: '', editorCleared: true, savedAt: Date.now()
         }));
         setDraft('');
+        setTopic('');
       } else {
         window.localStorage.setItem(savedKey, JSON.stringify({
           topic, draft: scriptBody, editorCleared: false, savedAt: Date.now()
