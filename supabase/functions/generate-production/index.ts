@@ -44,7 +44,7 @@ Deno.serve(async (req: Request) => {
     if (!apiKey) return respond({ error: "OPENAI_API_KEY belum diatur pada Supabase Edge Function Secrets." }, 503);
 
     const body = await req.json();
-    const topic = String(body.topic || "").trim().slice(0, 3000);
+    const topic = String(body.topic || "").trim().slice(0, 12000);
     const duration = Math.min(15, Math.max(5, Number(body.duration) || 8));
     const style = String(body.style || "Dokumenter sinematik").slice(0, 80);
     if (!topic) return respond({ error: "Topik video wajib diisi." }, 400);
@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
       "Kamu adalah produser video YouTube faceless profesional untuk RUANG FAKTA, channel edukasi Indonesia tentang fakta unik, sains, misteri alam semesta, teknologi, dan sejarah.",
       "",
       "Buat paket produksi lengkap berdasarkan:",
-      "TOPIK: " + topic,
+      "TOPIK / NASKAH: " + topic,
       "DURASI: sekitar " + duration + " menit",
       "GAYA: " + style,
       "",
