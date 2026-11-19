@@ -167,3 +167,10 @@
 .video-status-stats .stat-note{left:12px;right:8px;bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:1100px){.video-status-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:560px){.video-status-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.video-status-stats .stat-card{min-height:104px}}
+
+
+/* Export visible video list to an Excel-compatible CSV file. */
+.list-title-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.export-button{min-height:36px}
+.export-button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:560px){.list-title-actions{width:100%;margin-top:14px}.list-title-actions button{flex:1;justify-content:center}}
