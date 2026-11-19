@@ -308,7 +308,9 @@ function ScriptWriter({ videos, notify, profile, workspaceLoaded, selectedVideoI
       let cached = null;
       try { cached = JSON.parse(window.localStorage.getItem(cacheKey) || 'null'); } catch {}
       if (alive) {
-        setTopic(cached?.topic || '');
+        // Cache bertanda editorCleared hanya berarti editor dikosongkan setelah simpan,
+        // bukan bahwa naskah di database harus disembunyikan saat konten dibuka lagi.
+        setTopic(cached?.editorCleared ? '' : (cached?.topic || ''));
         setDraft(cached?.editorCleared ? '' : (cached?.draft || ''));
         lastSavedDraft.current = '';
       }
@@ -317,9 +319,10 @@ function ScriptWriter({ videos, notify, profile, workspaceLoaded, selectedVideoI
       const { data, error } = await supabase.from('video_scripts').select('body,topic,updated_at').eq('video_id', videoId).maybeSingle();
       if (alive && !error) {
         const dbTime = data?.updated_at ? Date.parse(data.updated_at) : 0;
-        const useCache = cached?.savedAt && cached.savedAt > dbTime;
-        const savedBody = cached?.editorCleared ? '' : (useCache ? (cached.draft || '') : (data?.body || ''));
-        const savedTopic = useCache || cached?.editorCleared ? (cached?.topic || '') : (data?.topic || '');
+        // Cache hanya boleh mengalahkan database jika berisi draft aktif yang lebih baru.
+        const useCache = !cached?.editorCleared && cached?.savedAt && cached.savedAt > dbTime;
+        const savedBody = useCache ? (cached?.draft || '') : (data?.body || '');
+        const savedTopic = useCache ? (cached?.topic || '') : (data?.topic || '');
         lastSavedDraft.current = data?.body || '';
         setDraft(savedBody);
         setTopic(savedTopic);
@@ -400,9 +403,9 @@ function ScriptWriter({ videos, notify, profile, workspaceLoaded, selectedVideoI
     try {
       const savedKey = `ruang-fakta-script:${profile.id}:${targetVideoId}`;
       if (options.clearAfterSave) {
-        window.localStorage.setItem(savedKey, JSON.stringify({
-          topic: '', draft: '', editorCleared: true, savedAt: Date.now()
-        }));
+        // Kosongkan editor saat ini, tetapi jangan simpan cache kosong yang
+        // menutupi naskah permanen di database saat konten dibuka kembali.
+        window.localStorage.removeItem(savedKey);
         setDraft('');
         setTopic('');
       } else {
