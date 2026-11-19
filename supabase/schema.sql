@@ -49,3 +49,29 @@ grant select, insert, update, delete on public.video_scripts to authenticated;
 -- Existing categories and videos are intentionally preserved.
 -- Categories are already readable by anon/authenticated.
 -- Existing video policies enforce user_id ownership and public published-video reads.
+
+
+-- AI Production Studio package storage. Existing content tables and rows remain unchanged.
+create table if not exists public.video_productions (
+  id uuid primary key default gen_random_uuid(),
+  video_id uuid not null unique references public.videos(id) on delete cascade,
+  package jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.video_productions enable row level security;
+drop policy if exists "Owners can read video productions" on public.video_productions;
+create policy "Owners can read video productions" on public.video_productions for select to authenticated
+using (exists (select 1 from public.videos v where v.id = video_id and v.user_id = (select auth.uid())));
+drop policy if exists "Owners can create video productions" on public.video_productions;
+create policy "Owners can create video productions" on public.video_productions for insert to authenticated
+with check (exists (select 1 from public.videos v where v.id = video_id and v.user_id = (select auth.uid())));
+drop policy if exists "Owners can update video productions" on public.video_productions;
+create policy "Owners can update video productions" on public.video_productions for update to authenticated
+using (exists (select 1 from public.videos v where v.id = video_id and v.user_id = (select auth.uid())))
+with check (exists (select 1 from public.videos v where v.id = video_id and v.user_id = (select auth.uid())));
+drop policy if exists "Owners can delete video productions" on public.video_productions;
+create policy "Owners can delete video productions" on public.video_productions for delete to authenticated
+using (exists (select 1 from public.videos v where v.id = video_id and v.user_id = (select auth.uid())));
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.video_productions to authenticated;
