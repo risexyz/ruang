@@ -236,7 +236,7 @@ function App() {
             <div className="panel category-panel"><div className="panel-heading"><div><h3>Jelajahi kategori</h3><p>Ruang untuk setiap rasa ingin tahu.</p></div><Compass size={17} className="muted"/></div><div className="category-grid">{categories.map(c => <button key={c.name} className="category-chip" onClick={() => {setFilter('Semua');setSearch(c.name);setActive('Konten Video')}}><span style={{color:c.color}}>{c.icon}</span><strong>{c.name}</strong><ArrowUpRight size={13}/></button>)}</div></div>
             <div className="quote-panel"><div className="quote-mark">“</div><p>Konten yang baik bukan hanya memberi jawaban, tetapi membuat orang ingin bertanya lebih jauh.</p><span>FILOSOFI RUANG FAKTA</span><div className="quote-decoration">RF</div></div>
           </section>
-        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : active === 'Kalender' ? <CalendarPage videos={videos}/> : active === 'Perpustakaan' ? <LibraryPage videos={videos} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }}/> : active === 'Analitik' ? <AnalyticsPage videos={videos}/> : <section className="list-page">
+        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : active === 'Kalender' ? <CalendarPage videos={videos}/> : active === 'Perpustakaan' ? <LibraryPage videos={videos} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }}/> : active === 'Analitik' ? <AnalyticsPage videos={videos}/> : active === 'Ide & Riset' ? <IdeasResearchPage videos={videos} onCreate={() => { setForm(current => ({ ...current, status: 'Ide' })); setShowModal(true); }} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} /> : <section className="list-page">
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul atau kategori..."/></div><div className="filter-wrap"><Filter size={15}/><select value={filter} onChange={e=>setFilter(e.target.value)}><option>Semua</option>{stages.map(s=><option key={s}>{s}</option>)}</select></div></div>
             <div className="table-head"><span>JUDUL KONTEN</span><span>KATEGORI</span><span>STATUS</span><span>JADWAL</span></div>
@@ -643,6 +643,41 @@ function ProductionStudio({ videos, notify, onCreate }) {
         </>}
       </div>
     </div>
+  </section>;
+}
+
+function IdeasResearchPage({ videos, onCreate, onOpen }) {
+  const [stage, setStage] = useState('Semua');
+  const ideas = videos.filter(video => ['Ide', 'Riset'].includes(video.status));
+  const ideaCount = ideas.filter(video => video.status === 'Ide').length;
+  const researchCount = ideas.filter(video => video.status === 'Riset').length;
+  const filtered = ideas.filter(video => stage === 'Semua' || video.status === stage);
+
+  return <section className="list-page">
+    <div className="eyebrow"><span/> PENGEMBANGAN GAGASAN</div>
+    <div className="list-title-row">
+      <div><h1>Ide &amp; Riset</h1><p>Kumpulkan gagasan dan kelola topik yang sedang diteliti sebelum menjadi naskah video.</p></div>
+      <button className="primary-button" onClick={onCreate}><Plus size={17}/> Tambah ide</button>
+    </div>
+    <section className="stats-grid">
+      <Stat icon={Lightbulb} label="Ide baru" value={ideaCount} note="Gagasan yang terkumpul" tone="purple"/>
+      <Stat icon={Search} label="Sedang diriset" value={researchCount} note="Topik dalam tahap penelitian" tone="blue"/>
+      <Stat icon={Compass} label="Total ide & riset" value={ideas.length} note="Belum masuk penulisan" tone="amber"/>
+    </section>
+    <div className="panel list-panel">
+      <div className="panel-heading">
+        <div><h3>Bank ide dan riset</h3><p>Pilih topik untuk melanjutkan pengembangan naskah.</p></div>
+        <div className="filter-wrap"><Filter size={15}/><select value={stage} onChange={e=>setStage(e.target.value)}><option value="Semua">Semua tahap</option><option value="Ide">Ide</option><option value="Riset">Riset</option></select></div>
+      </div>
+      <div className="table-head"><span>IDE / TOPIK</span><span>KATEGORI</span><span>TAHAP</span><span>JADWAL</span></div>
+      {filtered.length ? filtered.map(video => <div className="table-row" key={video.id} role="button" tabIndex={0} title="Buka naskah untuk mengembangkan topik" onClick={()=>onOpen(video)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onOpen(video);}}}>
+        <div className="table-title"><div className="video-thumb" style={{'--accent':video.color}}><Lightbulb size={14}/></div><div><strong>{video.title}</strong><small>Topik pengembangan</small></div></div>
+        <span className="table-category">{video.category}</span>
+        <span><i className={`status-tag ${statusClass(video.status)}`}>{video.status}</i></span>
+        <span className="table-date">{video.date}</span>
+      </div>) : <div className="empty-state"><Lightbulb size={25}/><strong>{stage === 'Semua' ? 'Belum ada ide atau riset' : 'Belum ada topik pada tahap ini'}</strong><span>Tambahkan gagasan baru untuk mulai membangun bank ide RUANG FAKTA.</span><button className="primary-button" onClick={onCreate}><Plus size={16}/> Tambah ide pertama</button></div>}
+    </div>
+    <div className="list-foot">{filtered.length} topik ditampilkan dari {ideas.length} ide dan riset</div>
   </section>;
 }
 
