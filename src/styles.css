@@ -132,3 +132,10 @@
 .sidebar nav::-webkit-scrollbar-thumb{background:#34465d;border-radius:8px}
 .sidebar nav::-webkit-scrollbar-thumb:hover{background:#587087}
 .sidebar-bottom{flex:0 0 auto}
+
+/* Inline status editor on the video list */
+.status-cell{display:flex;align-items:center;min-width:0}
+.status-select{max-width:100%;min-width:94px;padding:6px 23px 6px 9px;border:1px solid rgba(130,150,180,.22);border-radius:7px;background:#172337;color:#dce8f3;font-size:10px;font-weight:600;cursor:pointer;outline:none}
+.status-select:focus{border-color:#70d8c8;box-shadow:0 0 0 2px #70d8c822}
+.status-select option{background:#111c2d;color:#e8edf7}
+@media(max-width:650px){.status-select{min-width:78px;font-size:9px;padding:6px 17px 6px 6px}}
