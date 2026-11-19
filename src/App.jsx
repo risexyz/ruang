@@ -598,7 +598,8 @@ function ProductionStudio({ videos, notify, onCreate }) {
   const [production, setProduction] = useState(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploadingScene, setUploadingScene] = useState(null);\n  const [generatingScene, setGeneratingScene] = useState(null);
+  const [uploadingScene, setUploadingScene] = useState(null);
+  const [generatingScene, setGeneratingScene] = useState(null);
 
   async function hydrateSceneImages(pkg) {
     if (!pkg?.scenes?.length) return pkg;
