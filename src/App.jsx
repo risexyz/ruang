@@ -596,6 +596,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
   const [duration, setDuration] = useState('8');
   const [style, setStyle] = useState('Dokumenter sinematik');
   const [production, setProduction] = useState(null);
+  const [editingTasks, setEditingTasks] = useState([]);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingScene, setUploadingScene] = useState(null);
@@ -626,7 +627,12 @@ function ProductionStudio({ videos, notify, onCreate }) {
       ]);
       if (!alive) return;
       if (error) notify('Gagal memuat paket produksi: ' + error.message);
-      else if (data?.package) setProduction(await hydrateSceneImages(data.package));
+      else if (data?.package) {
+        const hydrated = await hydrateSceneImages(data.package);
+        if (!alive) return;
+        setProduction(hydrated);
+        setEditingTasks(hydrated.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false })));
+      } else setEditingTasks(editingTaskDefaults.map(label => ({ label, done: false }));
       if (scriptError) notify('Naskah belum dapat dimuat: ' + scriptError.message);
       const selected = videos.find(v => String(v.id) === String(videoId));
       if (selected) setTopic(scriptData?.body?.trim() ? selected.title + '\n\nNaskah:\n' + scriptData.body : selected.title);
@@ -822,14 +828,18 @@ function ProductionStudio({ videos, notify, onCreate }) {
     'Ekspor video final dan tonton ulang'
   ];
 
-  function toggleEditingTask(index, checked) {
-    setProduction(prev => {
-      const tasks = prev.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false }));
-      return {
-        ...prev,
-        editing_tasks: tasks.map((task, i) => i === index ? { ...task, done: checked } : task)
-      };
-    });
+  async function toggleEditingTask(index, checked) {
+    const tasks = (editingTasks.length ? editingTasks : editingTaskDefaults.map(label => ({ label, done: false })))
+      .map((task, i) => i === index ? { ...task, done: checked } : task);
+    setEditingTasks(tasks);
+    setProduction(prev => prev ? { ...prev, editing_tasks: tasks } : prev);
+    if (!videoId) return;
+    const { error } = await supabase.from('video_productions').upsert({
+      video_id: videoId,
+      package: { ...(production || {}), editing_tasks: tasks },
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'video_id' });
+    if (error) notify('Checklist belum tersimpan: ' + error.message);
   }
 
   function updateScene(index, field, value) {
@@ -874,6 +884,11 @@ function ProductionStudio({ videos, notify, onCreate }) {
       </div>
 
       <div className="production-results">
+        <div className="panel production-section editing-checklist-panel">
+          <div className="panel-heading"><div><h3>Checklist editing video</h3><p>Tandai pekerjaan yang selesai. Progres tersimpan otomatis tanpa kredit API.</p></div><span className="production-count">{editingTasks.filter(task => task.done).length}/{editingTaskDefaults.length} SELESAI</span></div>
+          <div className="editing-progress"><span style={{width: (editingTasks.filter(task => task.done).length / editingTaskDefaults.length * 100) + '%'}}/></div>
+          <div className="editing-task-list">{(editingTasks.length ? editingTasks : editingTaskDefaults.map(label => ({ label, done: false }))).map((task,i)=><label className={'editing-task' + (task.done ? ' is-done' : '')} key={i}><input type="checkbox" checked={!!task.done} onChange={e=>toggleEditingTask(i,e.target.checked)}/><span>{task.label || editingTaskDefaults[i]}</span></label>)}</div>
+        </div>
         {!production ? <div className="panel production-placeholder"><Clapperboard size={28}/><h3>Ruang produksi siap</h3><p>Pilih konten, tulis topik, lalu buat paket produksi dengan AI.</p></div> : <>
           <div className="panel production-title-panel">
             <div className="production-result-head"><div><span className="production-kicker">WORKING TITLE</span><h2>{production.working_title || 'Paket produksi'}</h2></div><div className="production-result-actions"><button type="button" className="subtle-button" onClick={printProductionGuide}><Download size={15}/> Cetak / Simpan PDF</button><button className="primary-button production-save" onClick={saveProduction} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan paket'}</button></div></div>
@@ -902,12 +917,6 @@ function ProductionStudio({ videos, notify, onCreate }) {
               <div className="production-scene-meta"><span>KAMERA: {scene.camera_motion || '—'}</span><span>AUDIO: {scene.sound_design || '—'}</span></div>
               <label>Narasi voice-over<textarea rows="4" value={scene.voiceover || ''} onChange={e=>updateScene(i,'voiceover',e.target.value)}/></label>
             </article>)}</div>
-          </div>
-
-          <div className="panel production-section editing-checklist-panel">
-            <div className="panel-heading"><div><h3>Checklist editing video</h3><p>Tandai setiap pekerjaan setelah selesai. Simpan paket agar progres tersimpan.</p></div><span className="production-count">{(production.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false }))).filter(task => task.done).length}/{editingTaskDefaults.length} SELESAI</span></div>
-            <div className="editing-progress"><span style={{width: ((production.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false }))).filter(task => task.done).length / editingTaskDefaults.length * 100) + '%'}}/></div>
-            <div className="editing-task-list">{(production.editing_tasks || editingTaskDefaults.map(label => ({ label, done: false }))).map((task,i)=><label className={'editing-task' + (task.done ? ' is-done' : '')} key={i}><input type="checkbox" checked={!!task.done} onChange={e=>toggleEditingTask(i,e.target.checked)}/><span>{task.label || editingTaskDefaults[i]}</span></label>)}</div>
           </div>
 
           <div className="panel production-section">
