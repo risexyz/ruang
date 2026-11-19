@@ -121,7 +121,19 @@ function App() {
     if (productionError) { notify('Gagal menghapus data produksi: ' + productionError.message); return; }
     const { error } = await supabase.from('videos').delete().eq('id', video.id).eq('user_id', profile.id);
     if (error) { notify('Gagal menghapus konten: ' + error.message); return; }
-    setVideos(prev => prev.filter(item => item.id !== video.id));
+    const remainingVideos = videos.filter(item => item.id !== video.id);
+    try {
+      window.localStorage.removeItem(`ruang-fakta-script:${profile.id}:${video.id}`);
+      if (!remainingVideos.length) {
+        const prefix = `ruang-fakta-script:${profile.id}:`;
+        for (let i = window.localStorage.length - 1; i >= 0; i--) {
+          const key = window.localStorage.key(i);
+          if (key?.startsWith(prefix)) window.localStorage.removeItem(key);
+        }
+      }
+    } catch {}
+    if (scriptVideoToOpen === video.id || !remainingVideos.length) setScriptVideoToOpen('');
+    setVideos(remainingVideos);
     notify('Konten dan data terkait berhasil dihapus');
   }
 
@@ -267,18 +279,22 @@ function ScriptWriter({ videos, notify, profile, selectedVideoId, onVideoCreated
   }
 
   useEffect(() => {
-    if (selectedVideoId) setVideoId(selectedVideoId);
-    else setVideoId(current => current || videos[0]?.id || '');
-  }, [selectedVideoId, videos.length]);
+    if (selectedVideoId && videos.some(video => video.id === selectedVideoId)) {
+      setVideoId(selectedVideoId);
+    } else {
+      setVideoId(current => videos.some(video => video.id === current) ? current : (videos[0]?.id || ''));
+    }
+  }, [selectedVideoId, videos]);
 
   useEffect(() => {
     let alive = true;
     async function loadDraft() {
       let cached = null;
       try { cached = JSON.parse(window.localStorage.getItem(cacheKey) || 'null'); } catch {}
-      if (alive && cached) {
-        setTopic(cached.topic || '');
-        setDraft(cached.editorCleared ? '' : (cached.draft || ''));
+      if (alive) {
+        setTopic(cached?.topic || '');
+        setDraft(cached?.editorCleared ? '' : (cached?.draft || ''));
+        lastSavedDraft.current = '';
       }
       if (!videoId) { if (alive) setLoadingDraft(false); return; }
       setLoadingDraft(true);
@@ -302,6 +318,9 @@ function ScriptWriter({ videos, notify, profile, selectedVideoId, onVideoCreated
   // Autosave draft after a short pause; no OpenAI request is made here.
   useEffect(() => {
     if (!draft.trim() || draft.trim() === lastSavedDraft.current || busy || loadingDraft || saving) return undefined;
+    // Tanpa konten yang dipilih, simpan sementara di browser saja.
+    // Autosave tidak boleh membuat baris konten baru setelah semua konten dihapus.
+    if (!videoId) return undefined;
     const timer = window.setTimeout(() => {
       saveDraft(draft, { silent: true });
     }, 1400);
@@ -430,7 +449,7 @@ function ScriptWriter({ videos, notify, profile, selectedVideoId, onVideoCreated
       </div>
       <div className="panel script-editor">
         <div className="panel-heading"><div><h3>Editor naskah</h3><p>Hasil AI bisa langsung kamu revisi di sini.</p></div><FileText size={18} className="muted"/></div>
-        <textarea className="script-draft" value={draft} onChange={e=>{setDraft(e.target.value);cacheEditor({draft:e.target.value});}} onBlur={()=>{ if (draft.trim() && draft.trim() !== lastSavedDraft.current) saveDraft(draft, { silent: true }); }} placeholder="Naskah yang dihasilkan AI akan muncul di sini. Kamu juga bisa menulis atau menempelkan naskah sendiri."/>
+        <textarea className="script-draft" value={draft} onChange={e=>{setDraft(e.target.value);cacheEditor({draft:e.target.value});}} onBlur={()=>{ if (videoId && draft.trim() && draft.trim() !== lastSavedDraft.current) saveDraft(draft, { silent: true }); }} placeholder="Naskah yang dihasilkan AI akan muncul di sini. Kamu juga bisa menulis atau menempelkan naskah sendiri."/>
         <div className="script-editor-foot"><span>{draft.trim() ? draft.trim().split(/\s+/).length.toLocaleString('id-ID') + ' kata' : 'Belum ada naskah'}</span><button className="primary-button" onClick={()=>saveDraft(draft, { clearAfterSave: true })} disabled={saving || !draft.trim()}><CheckCircle2 size={15}/>{saving ? 'Menyimpan...' : 'Simpan perubahan'}</button></div>
       </div>
     </div>
