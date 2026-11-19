@@ -230,6 +230,19 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
   const [saving, setSaving] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState(false);
   const lastSavedDraft = useRef('');
+  const cacheKey = `ruang-fakta-script:${profile?.id || 'guest'}:${videoId || 'new'}`;
+
+  function cacheEditor(values = {}) {
+    try {
+      const current = JSON.parse(window.localStorage.getItem(cacheKey) || '{}');
+      window.localStorage.setItem(cacheKey, JSON.stringify({
+        ...current,
+        topic: values.topic ?? topic,
+        draft: values.draft ?? draft,
+        savedAt: Date.now()
+      }));
+    } catch {}
+  }
 
   useEffect(() => {
     setVideoId(current => current || videos[0]?.id || '');
@@ -238,13 +251,23 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
   useEffect(() => {
     let alive = true;
     async function loadDraft() {
-      if (!videoId) return;
+      let cached = null;
+      try { cached = JSON.parse(window.localStorage.getItem(cacheKey) || 'null'); } catch {}
+      if (alive && cached) {
+        setTopic(cached.topic || '');
+        setDraft(cached.draft || '');
+      }
+      if (!videoId) { if (alive) setLoadingDraft(false); return; }
       setLoadingDraft(true);
-      const { data, error } = await supabase.from('video_scripts').select('body').eq('video_id', videoId).maybeSingle();
+      const { data, error } = await supabase.from('video_scripts').select('body,topic,updated_at').eq('video_id', videoId).maybeSingle();
       if (alive && !error) {
-        const savedBody = data?.body || '';
-        lastSavedDraft.current = savedBody;
+        const dbTime = data?.updated_at ? Date.parse(data.updated_at) : 0;
+        const useCache = cached?.savedAt && cached.savedAt > dbTime;
+        const savedBody = useCache ? (cached.draft || '') : (data?.body || '');
+        const savedTopic = useCache ? (cached.topic || '') : (data?.topic || '');
+        lastSavedDraft.current = data?.body || '';
         setDraft(savedBody);
+        setTopic(savedTopic);
       }
       if (alive && error) notify('Gagal memuat naskah: ' + error.message);
       if (alive) setLoadingDraft(false);
@@ -301,6 +324,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
     const { error: scriptError } = await supabase.from('video_scripts').upsert({
       video_id: targetVideoId,
       body: scriptBody,
+      topic: topic.trim(),
       updated_at: new Date().toISOString()
     }, { onConflict: 'video_id' });
 
@@ -315,6 +339,11 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       return false;
     }
     lastSavedDraft.current = scriptBody;
+    try {
+      window.localStorage.setItem(`ruang-fakta-script:${profile.id}:${targetVideoId}`, JSON.stringify({
+        topic, draft: scriptBody, savedAt: Date.now()
+      }));
+    } catch {}
     if (!options.silent) notify('Naskah berhasil disimpan otomatis ke Konten Video dan Supabase.');
     return true;
   }
@@ -350,7 +379,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
           </select>
         </label>
         <label>Ide atau topik video
-          <textarea rows="4" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Contoh: Mengapa luar angkasa terdengar sunyi, dan apa yang sebenarnya terjadi di sana?"/>
+          <textarea rows="4" value={topic} onChange={e=>{setTopic(e.target.value);cacheEditor({topic:e.target.value});}} placeholder="Contoh: Mengapa luar angkasa terdengar sunyi, dan apa yang sebenarnya terjadi di sana?"/>
         </label>
         <div className="script-fields">
           <label>Durasi target
@@ -367,7 +396,7 @@ function ScriptWriter({ videos, notify, profile, onVideoCreated }) {
       </div>
       <div className="panel script-editor">
         <div className="panel-heading"><div><h3>Editor naskah</h3><p>Hasil AI bisa langsung kamu revisi di sini.</p></div><FileText size={18} className="muted"/></div>
-        <textarea className="script-draft" value={draft} onChange={e=>setDraft(e.target.value)} onBlur={()=>{ if (draft.trim() && draft.trim() !== lastSavedDraft.current) saveDraft(draft, { silent: true }); }} placeholder="Naskah yang dihasilkan AI akan muncul di sini. Kamu juga bisa menulis atau menempelkan naskah sendiri."/>
+        <textarea className="script-draft" value={draft} onChange={e=>{setDraft(e.target.value);cacheEditor({draft:e.target.value});}} onBlur={()=>{ if (draft.trim() && draft.trim() !== lastSavedDraft.current) saveDraft(draft, { silent: true }); }} placeholder="Naskah yang dihasilkan AI akan muncul di sini. Kamu juga bisa menulis atau menempelkan naskah sendiri."/>
         <div className="script-editor-foot"><span>{draft.trim() ? draft.trim().split(/\s+/).length.toLocaleString('id-ID') + ' kata' : 'Belum ada naskah'}</span><button className="primary-button" onClick={()=>saveDraft()} disabled={saving || !draft.trim()}><CheckCircle2 size={15}/>{saving ? 'Menyimpan...' : 'Simpan perubahan'}</button></div>
       </div>
     </div>
