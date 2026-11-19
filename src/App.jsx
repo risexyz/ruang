@@ -602,6 +602,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
   const [uploadingScene, setUploadingScene] = useState(null);
   const [generatingScene, setGeneratingScene] = useState(null);
   const [exportingVideo, setExportingVideo] = useState(false);
+  const [uploadingAudio, setUploadingAudio] = useState('');
 
   async function hydrateSceneImages(pkg) {
     if (!pkg?.scenes?.length) return pkg;
@@ -610,7 +611,14 @@ function ProductionStudio({ videos, notify, onCreate }) {
       const { data } = await supabase.storage.from('production-assets').createSignedUrl(scene.image_path, 3600);
       return { ...scene, image_url: data?.signedUrl || '' };
     }));
-    return { ...pkg, scenes };
+    const audioAssets = { ...(pkg.audio_assets || {}) };
+    for (const key of ['voiceover', 'music']) {
+      if (audioAssets[key]?.path) {
+        const { data } = await supabase.storage.from('production-assets').createSignedUrl(audioAssets[key].path, 3600);
+        audioAssets[key] = { ...audioAssets[key], url: data?.signedUrl || '' };
+      }
+    }
+    return { ...pkg, scenes, audio_assets: audioAssets };
   }
 
   useEffect(() => {
@@ -714,6 +722,26 @@ function ProductionStudio({ videos, notify, onCreate }) {
     setGeneratingScene(null);
     if (saveError) notify('Gambar dibuat, tetapi paket storyboard gagal disimpan: ' + saveError.message);
     else notify('Gambar AI berhasil dibuat dan disimpan pada adegan ini.');
+  }
+
+  async function uploadProductionAudio(kind, file) {
+    if (!file || !videoId || !production) return;
+    if (!file.type.startsWith('audio/')) { notify('Pilih file audio MP3, WAV, M4A, AAC, OGG, atau WebM.'); return; }
+    if (file.size > 10 * 1024 * 1024) { notify('Ukuran audio maksimal 10 MB.'); return; }
+    setUploadingAudio(kind);
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) { setUploadingAudio(''); notify('Sesi login tidak ditemukan. Silakan masuk kembali.'); return; }
+    const ext = (file.name.split('.').pop() || 'mp3').toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp3';
+    const path = userData.user.id + '/' + videoId + '/' + kind + '-' + Date.now() + '.' + ext;
+    const { error: uploadError } = await supabase.storage.from('production-assets').upload(path, file, { contentType: file.type, cacheControl: '3600', upsert: false });
+    if (uploadError) { setUploadingAudio(''); notify('Gagal mengunggah audio: ' + uploadError.message); return; }
+    const { data: signedData, error: signedError } = await supabase.storage.from('production-assets').createSignedUrl(path, 3600);
+    if (signedError) { setUploadingAudio(''); notify('Audio tersimpan, tetapi pratinjau gagal dibuat: ' + signedError.message); return; }
+    const nextProduction = { ...production, audio_assets: { ...(production.audio_assets || {}), [kind]: { path, url: signedData.signedUrl, name: file.name } } };
+    setProduction(nextProduction);
+    const { error: saveError } = await supabase.from('video_productions').upsert({ video_id: videoId, package: nextProduction, updated_at: new Date().toISOString() }, { onConflict: 'video_id' });
+    setUploadingAudio('');
+    notify(saveError ? 'Audio terunggah, tetapi paket gagal disimpan: ' + saveError.message : 'Audio berhasil diunggah dan disimpan.');
   }
 
   async function uploadSceneImage(index, file) {
@@ -855,6 +883,24 @@ function ProductionStudio({ videos, notify, onCreate }) {
         img.src = scene.image_url;
       })));
       const stream = canvas.captureStream(30);
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const audioDestination = audioContext.createMediaStreamDestination();
+      const audioElements = [];
+      for (const key of ['voiceover', 'music']) {
+        const asset = production.audio_assets?.[key];
+        if (!asset?.url) continue;
+        const audio = new Audio(asset.url);
+        audio.crossOrigin = 'anonymous';
+        audio.loop = key === 'music';
+        audio.preload = 'auto';
+        const source = audioContext.createMediaElementSource(audio);
+        const gain = audioContext.createGain();
+        gain.gain.value = key === 'music' ? 0.22 : 1;
+        source.connect(gain).connect(audioDestination);
+        audioElements.push(audio);
+      }
+      audioDestination.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+      await audioContext.resume();
       const chunks = [];
       const recorder = new MediaRecorder(stream, { mimeType });
       recorder.ondataavailable = event => { if (event.data?.size) chunks.push(event.data); };
@@ -863,6 +909,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
         recorder.onerror = () => reject(new Error('Proses ekspor video gagal.'));
       });
       recorder.start(1000);
+      audioElements.forEach(audio => { audio.currentTime = 0; audio.play().catch(() => {}); });
       for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
         const img = loadedImages[i];
@@ -888,6 +935,8 @@ function ProductionStudio({ videos, notify, onCreate }) {
       recorder.stop();
       await stopped;
       stream.getTracks().forEach(track => track.stop());
+      audioElements.forEach(audio => { audio.pause(); audio.src = ''; });
+      await audioContext.close();
       const blob = new Blob(chunks, { type: mimeType });
       if (!blob.size) throw new Error('File video kosong. Silakan coba ekspor kembali.');
       const url = URL.createObjectURL(blob);
@@ -899,7 +948,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
       anchor.click();
       anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
-      notify('Video WebM berhasil diekspor. Video ini belum memiliki audio voice-over atau musik.');
+      notify(audioElements.length ? 'Video WebM berhasil diekspor dengan audio yang dipilih.' : 'Video WebM berhasil diekspor tanpa audio. Unggah voice-over atau musik untuk menyertakannya.');
     } catch (error) {
       notify(error.message || 'Gagal mengekspor video.');
     } finally {
@@ -979,6 +1028,18 @@ function ProductionStudio({ videos, notify, onCreate }) {
           <div className="editing-task-list">{(editingTasks.length ? editingTasks : editingTaskDefaults.map(label => ({ label, done: false }))).map((task,i)=><label className={'editing-task' + (task.done ? ' is-done' : '')} key={i}><input type="checkbox" checked={!!task.done} onChange={e=>toggleEditingTask(i,e.target.checked)}/><span>{task.label || editingTaskDefaults[i]}</span></label>)}</div>
         </div>
         {!production ? <div className="panel production-placeholder"><Clapperboard size={28}/><h3>Ruang produksi siap</h3><p>Pilih konten, tulis topik, lalu buat paket produksi dengan AI.</p></div> : <>
+          <div className="panel production-section production-audio-panel">
+            <div className="panel-heading"><div><h3>Audio video</h3><p>Unggah narasi dan musik sendiri. File disimpan privat tanpa kredit API.</p></div><Upload size={17} className="muted"/></div>
+            <div className="production-audio-grid">
+              {['voiceover', 'music'].map(kind => <div className="production-audio-item" key={kind}>
+                <strong>{kind === 'voiceover' ? 'Voice-over / narasi' : 'Musik latar'}</strong>
+                <small>{production.audio_assets?.[kind]?.name || 'Belum ada file audio'}</small>
+                {production.audio_assets?.[kind]?.url && <audio controls preload="none" src={production.audio_assets[kind].url}/>}
+                <label className="scene-upload-control"><Upload size={14}/>{uploadingAudio === kind ? 'Mengunggah...' : production.audio_assets?.[kind]?.path ? 'Ganti audio' : 'Unggah audio'}<input type="file" accept="audio/*" disabled={!!uploadingAudio} onChange={e=>{uploadProductionAudio(kind,e.target.files?.[0]);e.target.value='';}}/></label>
+              </div>)}
+            </div>
+            <p className="script-hint"><CheckCircle2 size={13}/> Musik latar otomatis diputar berulang dengan volume lebih rendah. Unggah file audio maksimal 10 MB.</p>
+          </div>
           <div className="panel production-title-panel">
             <div className="production-result-head"><div><span className="production-kicker">WORKING TITLE</span><h2>{production.working_title || 'Paket produksi'}</h2></div><div className="production-result-actions"><button type="button" className="primary-button" onClick={exportFinalVideo} disabled={exportingVideo}><Video size={15}/>{exportingVideo ? 'Mengekspor video...' : 'Ekspor Video Final'}</button><button type="button" className="subtle-button" onClick={printProductionGuide}><Download size={15}/> Cetak / Simpan PDF</button><button className="primary-button production-save" onClick={saveProduction} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan paket'}</button></div></div>
             <div className="production-subhead">Pilihan judul YouTube</div>
