@@ -142,3 +142,11 @@
 
 /* Editable publication date and time */
 .schedule-cell{display:flex;align-items:center;min-width:0}.schedule-input{width:100%;min-width:0;max-width:190px;padding:6px 7px;border:1px solid rgba(130,150,180,.22);border-radius:7px;background:#172337;color:#dce8f3;font-size:10px;color-scheme:dark}.schedule-input:focus{outline:none;border-color:#70d8c8;box-shadow:0 0 0 2px #70d8c822}@media(max-width:760px){.schedule-input{max-width:155px;font-size:9px;padding:6px 4px}}
+
+/* Inline editing for content title and category. */
+.video-title-input{width:100%;min-width:0;max-width:100%;padding:2px 0;border:1px solid transparent;border-radius:4px;background:transparent;color:#dbe4ef;font-size:10px;font-weight:600;outline:none}
+.video-title-input:hover,.video-title-input:focus{padding:4px 6px;border-color:#365b62;background:#0b1422}
+.category-select{width:100%;max-width:100%;padding:5px 6px;border:1px solid transparent;border-radius:5px;background:transparent;color:#9aa9bc;font-size:9px;outline:none}
+.category-select:hover,.category-select:focus{border-color:#365b62;background:#0b1422;color:#dbe4ef}
+.category-select option{background:#111c2b;color:#e7edf6}
+@media(max-width:560px){.video-title-input{font-size:9px}.category-cell{display:none!important}}
