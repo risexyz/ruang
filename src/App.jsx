@@ -601,6 +601,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
   const [saving, setSaving] = useState(false);
   const [uploadingScene, setUploadingScene] = useState(null);
   const [generatingScene, setGeneratingScene] = useState(null);
+  const [exportingVideo, setExportingVideo] = useState(false);
 
   async function hydrateSceneImages(pkg) {
     if (!pkg?.scenes?.length) return pkg;
@@ -818,6 +819,94 @@ function ProductionStudio({ videos, notify, onCreate }) {
     popup.document.close();
   }
 
+
+  async function exportFinalVideo() {
+    const scenes = production?.scenes || [];
+    if (!scenes.length) {
+      notify('Storyboard belum tersedia. Buat paket produksi terlebih dahulu.');
+      return;
+    }
+    const missing = scenes.filter(scene => !scene.image_url);
+    if (missing.length) {
+      notify('Lengkapi gambar semua adegan sebelum ekspor video.');
+      return;
+    }
+    if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+      notify('Browser ini belum mendukung ekspor video. Gunakan Chrome versi terbaru.');
+      return;
+    }
+    const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+      .find(type => MediaRecorder.isTypeSupported(type));
+    if (!mimeType) {
+      notify('Format ekspor video tidak didukung browser ini.');
+      return;
+    }
+    setExportingVideo(true);
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 720;
+      const ctx = canvas.getContext('2d');
+      const loadedImages = await Promise.all(scenes.map(scene => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Salah satu gambar adegan gagal dimuat. Periksa koneksi lalu coba lagi.'));
+        img.src = scene.image_url;
+      })));
+      const stream = canvas.captureStream(30);
+      const chunks = [];
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = event => { if (event.data?.size) chunks.push(event.data); };
+      const stopped = new Promise((resolve, reject) => {
+        recorder.onstop = resolve;
+        recorder.onerror = () => reject(new Error('Proses ekspor video gagal.'));
+      });
+      recorder.start(1000);
+      for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+        const img = loadedImages[i];
+        const scale = Math.max(canvas.width / img.width, canvas.height / img.height);
+        const width = img.width * scale;
+        const height = img.height * scale;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+        const gradient = ctx.createLinearGradient(0, 360, 0, 720);
+        gradient.addColorStop(0, 'rgba(0,0,0,0)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0.82)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 330, canvas.width, 390);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '600 22px Arial';
+        ctx.fillText('RUANG FAKTA  •  ADEGAN ' + String(scene.scene_number || i + 1).padStart(2, '0'), 64, 610);
+        ctx.font = 'bold 38px Arial';
+        const heading = String(scene.section || 'Adegan').slice(0, 52);
+        ctx.fillText(heading, 64, 665);
+        const seconds = Math.min(60, Math.max(2, Number(scene.estimated_seconds) || 5));
+        await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+      }
+      recorder.stop();
+      await stopped;
+      stream.getTracks().forEach(track => track.stop());
+      const blob = new Blob(chunks, { type: mimeType });
+      if (!blob.size) throw new Error('File video kosong. Silakan coba ekspor kembali.');
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = (production.working_title || 'ruang-fakta-video').toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.webm';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      notify('Video WebM berhasil diekspor. Video ini belum memiliki audio voice-over atau musik.');
+    } catch (error) {
+      notify(error.message || 'Gagal mengekspor video.');
+    } finally {
+      setExportingVideo(false);
+    }
+  }
+
   const editingTaskDefaults = [
     'Pastikan semua gambar adegan sudah tersedia',
     'Rekam atau siapkan voice-over setiap adegan',
@@ -891,7 +980,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
         </div>
         {!production ? <div className="panel production-placeholder"><Clapperboard size={28}/><h3>Ruang produksi siap</h3><p>Pilih konten, tulis topik, lalu buat paket produksi dengan AI.</p></div> : <>
           <div className="panel production-title-panel">
-            <div className="production-result-head"><div><span className="production-kicker">WORKING TITLE</span><h2>{production.working_title || 'Paket produksi'}</h2></div><div className="production-result-actions"><button type="button" className="subtle-button" onClick={printProductionGuide}><Download size={15}/> Cetak / Simpan PDF</button><button className="primary-button production-save" onClick={saveProduction} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan paket'}</button></div></div>
+            <div className="production-result-head"><div><span className="production-kicker">WORKING TITLE</span><h2>{production.working_title || 'Paket produksi'}</h2></div><div className="production-result-actions"><button type="button" className="primary-button" onClick={exportFinalVideo} disabled={exportingVideo}><Video size={15}/>{exportingVideo ? 'Mengekspor video...' : 'Ekspor Video Final'}</button><button type="button" className="subtle-button" onClick={printProductionGuide}><Download size={15}/> Cetak / Simpan PDF</button><button className="primary-button production-save" onClick={saveProduction} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan paket'}</button></div></div>
             <div className="production-subhead">Pilihan judul YouTube</div>
             <div className="production-title-options">{(production.title_options || []).map((title,i)=><button key={i} onClick={()=>setProduction(p=>({...p,working_title:title}))}>{title}</button>)}</div>
           </div>
