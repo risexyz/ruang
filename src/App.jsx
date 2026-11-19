@@ -269,7 +269,7 @@ function App() {
       </nav>
       <div className="sidebar-bottom">
         <div className="plan-card"><div className="plan-icon"><Sparkles size={15}/></div><strong>Ruang berkembang</strong><p>Bangun ide hebat, satu video dalam satu waktu.</p><div className="plan-line"><span/></div><small>CREATOR MODE <b>ACTIVE</b></small></div>
-        <button className="nav-item" onClick={() => notify('Pengaturan akan tersedia pada tahap berikutnya')}><Settings2 size={17}/>Pengaturan</button>
+        <button className={`nav-item ${active === 'Pengaturan' ? 'active' : ''}`} onClick={() => { setActive('Pengaturan'); setMobileNav(false); }}><Settings2 size={17}/>Pengaturan</button>
         <button className="nav-item" onClick={() => notify('Pusat bantuan RUANG FAKTA')}><CircleHelp size={17}/>Pusat bantuan</button>
         <div className="user-row"><div className="user-avatar">{profile?.email?.[0]?.toUpperCase() || 'R'}</div><div className="user-meta"><strong>{profile?.email || 'Creator'}</strong><span>{profile ? 'Authenticated' : 'Workspace owner'}</span></div><button className="icon-button" title="Keluar" onClick={signOut}><MoreHorizontal size={18}/></button></div>
       </div>
@@ -313,7 +313,7 @@ function App() {
             <div className="panel category-panel"><div className="panel-heading"><div><h3>Jelajahi kategori</h3><p>Ruang untuk setiap rasa ingin tahu.</p></div><Compass size={17} className="muted"/></div><div className="category-grid">{categories.map(c => <button key={c.name} className="category-chip" onClick={() => {setFilter('Semua');setSearch(c.name);setActive('Konten Video')}}><span style={{color:c.color}}>{c.icon}</span><strong>{c.name}</strong><ArrowUpRight size={13}/></button>)}</div></div>
             <div className="quote-panel"><div className="quote-mark">“</div><p>Konten yang baik bukan hanya memberi jawaban, tetapi membuat orang ingin bertanya lebih jauh.</p><span>FILOSOFI RUANG FAKTA</span><div className="quote-decoration">RF</div></div>
           </section>
-        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : active === 'Kalender' ? <CalendarPage videos={videos}/> : active === 'Perpustakaan' ? <LibraryPage videos={videos} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }}/> : active === 'Analitik' ? <AnalyticsPage videos={videos}/> : active === 'Ide & Riset' ? <IdeasResearchPage videos={videos} onCreate={() => { setForm(current => ({ ...current, status: 'Ide' })); setShowModal(true); }} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} /> : <section className="list-page">
+        </> : active === 'Naskah' ? <ScriptWriter videos={videos} notify={notify} profile={profile} workspaceLoaded={!loadingVideos} selectedVideoId={scriptVideoToOpen} onVideoCreated={video => setVideos(prev => prev.some(v => v.id === video.id) ? prev : [video, ...prev])}/> : active === 'Produksi' ? <ProductionStudio videos={videos} notify={notify} onCreate={() => setShowModal(true)}/> : active === 'Kalender' ? <CalendarPage videos={videos}/> : active === 'Perpustakaan' ? <LibraryPage videos={videos} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }}/> : active === 'Analitik' ? <AnalyticsPage videos={videos}/> : active === 'Ide & Riset' ? <IdeasResearchPage videos={videos} onCreate={() => { setForm(current => ({ ...current, status: 'Ide' })); setShowModal(true); }} onOpen={v => { setScriptVideoToOpen(v.id); setActive('Naskah'); }} /> : active === 'Pengaturan' ? <SettingsPage profile={profile} notify={notify}/> : <section className="list-page">
           <div className="eyebrow"><span/> RUANG KERJA</div><div className="list-title-row"><div><h1>{active}</h1><p>Kelola dan kembangkan setiap cerita RUANG FAKTA.</p></div><div className="list-title-actions"><button className="subtle-button export-button" onClick={exportVisibleVideos} disabled={!visible.length}><Download size={15}/> Ekspor Excel</button><button className="primary-button" onClick={() => setShowModal(true)}><Plus size={17}/> Buat konten baru</button></div></div>
           <section className="stats-grid video-status-stats">
             <Stat icon={Lightbulb} label="Ide" value={count('Ide')} note="Gagasan baru" tone="purple"/>
@@ -805,5 +805,49 @@ function AnalyticsPage({ videos }) {
 
 function Stat({icon:Icon,label,value,note,tone}) { return <div className="stat-card"><div className={`stat-icon ${tone}`}><Icon size={18}/></div><div className="stat-label">{label}</div><div className="stat-value">{value}</div><div className="stat-note">{note}</div></div>; }
 function VideoRow({video,onClick}) { return <button className="video-row" onClick={onClick}><div className="video-thumb" style={{'--accent':video.color}}><Play size={14}/></div><div className="video-row-info"><strong>{video.title}</strong><span>{video.category} <i/> {video.duration}</span></div><i className={`status-tag ${statusClass(video.status)}`}>{video.status}</i><ArrowUpRight size={15} className="row-arrow"/></button>; }
+
+function SettingsPage({ profile, notify }) {
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function updatePassword(event) {
+    event.preventDefault();
+    if (password.length < 6) { notify('Password minimal 6 karakter'); return; }
+    if (password !== confirmation) { notify('Konfirmasi password belum sama'); return; }
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) { notify('Gagal memperbarui password: ' + error.message); return; }
+    setPassword('');
+    setConfirmation('');
+    notify('Password akun berhasil diperbarui');
+  }
+
+  return <section className="list-page settings-page">
+    <div className="eyebrow"><span/> PREFERENSI WORKSPACE</div>
+    <div className="list-title-row"><div><h1>Pengaturan</h1><p>Kelola informasi akun dan keamanan akses RUANG FAKTA.</p></div></div>
+    <div className="settings-grid">
+      <section className="panel settings-panel">
+        <div className="settings-panel-icon"><Settings2 size={18}/></div>
+        <h3>Informasi akun</h3>
+        <p>Email yang digunakan untuk masuk ke workspace.</p>
+        <label>Email akun</label>
+        <div className="settings-readonly">{profile?.email || 'Email tidak tersedia'}</div>
+        <small>Email akun saat ini hanya ditampilkan dan belum dapat diubah dari halaman ini.</small>
+      </section>
+      <form className="panel settings-panel" onSubmit={updatePassword}>
+        <div className="settings-panel-icon"><CheckCircle2 size={18}/></div>
+        <h3>Keamanan akun</h3>
+        <p>Ganti password untuk menjaga keamanan akun.</p>
+        <label htmlFor="settings-password">Password baru</label>
+        <input id="settings-password" type="password" autoComplete="new-password" minLength={6} required value={password} onChange={event => setPassword(event.target.value)} placeholder="Minimal 6 karakter"/>
+        <label htmlFor="settings-password-confirm">Ulangi password baru</label>
+        <input id="settings-password-confirm" type="password" autoComplete="new-password" minLength={6} required value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder="Ketik ulang password baru"/>
+        <button className="primary-button settings-save" type="submit" disabled={busy}>{busy ? 'Menyimpan...' : 'Perbarui password'}</button>
+      </form>
+    </div>
+  </section>;
+}
 
 export default App;
