@@ -757,7 +757,7 @@ function ProductionStudio({ videos, notify, onCreate }) {
         <button className="primary-button production-generate" onClick={generate} disabled={busy}>
           <WandSparkles size={16}/>{busy ? 'Menyusun paket produksi...' : 'Buat Paket Produksi'}
         </button>
-        <p className="script-hint"><CheckCircle2 size={13}/> AI menyusun arahan produksi. Prompt gambar dapat digunakan di generator gambar pilihanmu; hasil gambar/video tidak dibuat otomatis di tahap ini.</p>
+        <p className="script-hint"><CheckCircle2 size={13}/> Storyboard belum otomatis membuat gambar. Unggah visual untuk tiap adegan; file disimpan privat dan tidak memakai kredit API.</p>
       </div>
 
       <div className="production-results">
